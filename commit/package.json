@@ -1,4 +1,14 @@
 {
+  "private": true,
   "type": "module",
-  "main": "index.js"
+  "main": "index.ts",
+  "scripts": {
+    "test": "node --test index.test.ts",
+    "typecheck": "tsc"
+  },
+  "devDependencies": {
+    "@opencode/plugin": "2.0.29",
+    "@types/node": "26.6.5",
+    "typescript": "7.0.2"
+  }
 }

@@ -31,11 +31,11 @@ Interpret hints in the invocation text. Also honor plain-language requests
 
 ## Workflow
 
-1. **Collect context.** Run `scripts/git-context.sh` (`--amend` when amending), or
-   call the `commit_context` tool if your harness provides it.
+1. **Collect context.** Call the `commit_context` tool (`amend: true` when
+   amending).
    Read the branch, recent commit subjects (to match house style),
    working-tree status, the diff summary and diff, and untracked files. Paths
-   are relative to the repo root. The script is read-only and never stages anything, and it
+   are relative to the repo root. The tool is read-only and never stages anything, and it
    works before the first commit. If the working tree is clean, say so and
    stop, unless amending, where a message-only amend is valid. If it prints a
    **possible secret files** warning, ask the user before including those
@@ -79,18 +79,15 @@ Interpret hints in the invocation text. Also honor plain-language requests
      changed → blank line → one paragraph explaining **why**.
    - **brief**: subject line only.
 
-7. **Reflow, then validate.** Write the draft to a file from `mktemp`. Run
-   `scripts/reflow-message.sh <file> <N> --in-place` (skip with `--no-reflow`),
-   then `scripts/check-message.sh <file>` (append `--no-type`
-   when `type=none`). Fix every reported problem and re-run until it prints
-   `OK`.
-   If a `commit_check` tool is available, pass the draft message text to it
-   instead: it reflows and validates in one step and returns the final message
-   and a `file` ready for step 9.
+7. **Reflow, then validate.** Pass the draft to the `commit_check` tool
+   (`wrap: N`, `noReflow: true` for `--no-reflow`, `noType: true` when
+   `type=none`). It reflows, validates, and returns `ok`, the `problems` found,
+   the final `message`, and a `file` holding it for step 9. Fix every problem
+   and call it again until `ok` is true.
 
 8. **Confirm.** Unless `--no-confirm` was passed or the user already approved,
-   show the exact message in a fenced block and ask for approval. Apply edits to
-   the file and re-run step 7.
+   show the exact message in a fenced block and ask for approval. Apply edits
+   and re-run step 7, then use the newly returned `file`.
 
 9. **Stage, then commit.** Stage the selection explicitly from the repo root
    (`git add -A` for all, or `git add -- <paths>` for a subset), then commit the
@@ -121,16 +118,11 @@ Interpret hints in the invocation text. Also honor plain-language requests
 - Never put secrets, tokens, or `.env` contents in the message; if the diff
   contains them, warn the user instead.
 - If the user asks for a non-conventional message, set `type=none`, skip the
-  type prefix, keep the subject/body structure, and validate with `--no-type`.
+  type prefix, keep the subject/body structure, and validate with `noType: true`.
 
 ## Files
 
-- `scripts/git-context.sh [--amend]` — read-only working-tree context collector.
-- `scripts/reflow-message.sh` — word-wrap the body at a fixed width; keeps
-  trailers verbatim.
-- `scripts/check-message.sh` — conventional-commit message validator.
-- `scripts/test.sh` — self-check for the scripts above; run after editing them.
+- `index.ts` — the plugin: `commit_context` (`gitContext`) and `commit_check`
+  (`reflow` + `checkMessage`). Run `npm test` and `npm run typecheck` after
+  editing it.
 - `references/message-format.md` — types, scope, subject, brief vs detailed.
-
-In OpenCode, the `commit_context` and `commit_check` tools wrap the scripts
-above; prefer them when they are available.
