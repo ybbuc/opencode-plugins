@@ -55,10 +55,10 @@ Interpret hints in the invocation text. Also honor plain-language requests
    given. Prefer a single commit when the changes are cohesive; do not split
    trivially. Splits are by whole file; if one file mixes concerns, ask the user
    rather than splitting hunks. If split:
-   - Draft every message (steps 4–7), then present the plan once: each commit's
-     paths and its full message. One approval covers all of them.
-   - Then run steps 9–10 per commit, in the agreed order, staging only that
-     commit's paths.
+   - Draft every message (steps 4–7), then confirm the plan once in step 8: a
+     multi-select question listing each commit, so the user picks which to make.
+   - Then run steps 9–10 per selected commit, in the agreed order, staging only
+     that commit's paths.
 
 4. **Use two sources of truth.** Combine:
    - the **working-tree diff** — what is actually being committed, and
@@ -86,8 +86,14 @@ Interpret hints in the invocation text. Also honor plain-language requests
    and call it again until `ok` is true.
 
 8. **Confirm.** Unless `--no-confirm` was passed or the user already approved,
-   show the exact message in a fenced block and ask for approval. Apply edits
-   and re-run step 7, then use the newly returned `file`.
+   ask with the `question` tool rather than a plain-text "Commit?":
+   - **single commit**: one question whose prompt contains the exact message,
+     with the fixed options `Commit`, `Edit message`, `Cancel`.
+   - **split plan**: one question with `multiple: true` and one option per
+     proposed commit (label = subject, description = its paths), starting with
+     nothing selected; commit only the selected ones, in the drafted order.
+   On `Edit message`, or on any free-form feedback, apply the changes and re-run
+   step 7, then confirm again with the newly returned `file`.
 
 9. **Stage, then commit.** Stage the selection explicitly from the repo root
    (`git add -A` for all, or `git add -- <paths>` for a subset), then commit the
