@@ -86,12 +86,17 @@ Interpret hints in the invocation text. Also honor plain-language requests
    and call it again until `ok` is true.
 
 8. **Confirm.** Unless `--no-confirm` was passed or the user already approved,
-   ask with the `question` tool rather than a plain-text "Commit?":
-   - **single commit**: one question whose prompt contains the exact message,
-     with the fixed options `Commit`, `Edit message`, `Cancel`.
-   - **split plan**: one question with `multiple: true` and one option per
-     proposed commit (label = subject, description = its paths), starting with
-     nothing selected; commit only the selected ones, in the drafted order.
+   ask with the `question` tool rather than a plain-text "Commit?". The desktop
+   renders a question prompt as a single collapsed line, so never put the
+   message in it:
+   - **single commit**: print the exact message in your reply as a fenced
+     `text` block, then ask one question whose prompt is one line ("Commit this
+     message?"), with the fixed options `Commit`, `Edit message`, `Cancel`.
+   - **split plan**: print every drafted message as a fenced `text` block, then
+     ask one question with `multiple: true` and one option per proposed commit
+     (label = subject, description = its paths), starting with nothing
+     selected; commit only the selected ones, in the drafted order.
+
    On `Edit message`, or on any free-form feedback, apply the changes and re-run
    step 7, then confirm again with the newly returned `file`.
 
