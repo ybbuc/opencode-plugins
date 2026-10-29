@@ -2,9 +2,13 @@ import { ComposerPill, Plugin, Style } from "@opencode/plugin/gui"
 import { createSignal, onCleanup } from "solid-js"
 import { Balance, type Ollama } from "./usage.ts"
 
-const clock = (date: Date) => `${String(date.getUTCHours()).padStart(2, "0")}:${String(date.getUTCMinutes()).padStart(2, "0")} UTC`
+const clock = (date: Date) => date.toLocaleTimeString("en-US", { hourCycle: "h23", hour: "2-digit", minute: "2-digit" })
 const used = (remaining: number) => Math.round(100 - remaining)
-const day = (date: string) => new Date(`${date}T00:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })
+const dayOf = (date: Date) => date.toLocaleDateString("en-US", { month: "short", day: "numeric" })
+const day = (date: string) => dayOf(new Date(`${date}T00:00:00`))
+// A clock alone hides a reset days away; show the day unless it is today.
+const when = (date: Date) =>
+  dayOf(date) === dayOf(new Date()) ? clock(date) : `${dayOf(date)} ${clock(date)}`
 // Rows render in the pill's proportional sans font, where padded character counts do not line up.
 // Monospace makes the bar columns meet; nbsp survives HTML whitespace collapsing.
 const css = `[data-slot="session-plugin-pill-row"] { font-family: var(--v2-font-family-code) }`
@@ -115,13 +119,13 @@ export default Plugin.define({
 
       if (provider === "opencode-go") {
         const value = go()
-        if (value?.rolling) list.push({ id: "go.rolling", label: row(value.rolling.percent)("Session"), detail: `resets ${clock(new Date(value.rolling.resetsAt))}` })
-        if (value?.weekly) list.push({ id: "go.weekly", label: row(value.weekly.percent)("Weekly"), detail: `resets ${clock(new Date(value.weekly.resetsAt))}` })
-        if (value?.monthly) list.push({ id: "go.monthly", label: row(value.monthly.percent)("Monthly"), detail: `resets ${clock(new Date(value.monthly.resetsAt))}` })
+        if (value?.rolling) list.push({ id: "go.rolling", label: row(value.rolling.percent)("Session"), detail: `resets ${when(new Date(value.rolling.resetsAt))}` })
+        if (value?.weekly) list.push({ id: "go.weekly", label: row(value.weekly.percent)("Weekly"), detail: `resets ${when(new Date(value.weekly.resetsAt))}` })
+        if (value?.monthly) list.push({ id: "go.monthly", label: row(value.monthly.percent)("Monthly"), detail: `resets ${when(new Date(value.monthly.resetsAt))}` })
       } else if (provider === "ollama-cloud") {
         const account = ollama()
-        if (account?.session) list.push({ id: "ollama.session", label: row(used(account.session.remaining))("Session"), detail: `resets ${clock(new Date(account.session.resetsAt))}` })
-        if (account?.weekly) list.push({ id: "ollama.weekly", label: row(used(account.weekly.remaining))("Weekly"), detail: `resets ${clock(new Date(account.weekly.resetsAt))}` })
+        if (account?.session) list.push({ id: "ollama.session", label: row(used(account.session.remaining))("Session"), detail: `resets ${when(new Date(account.session.resetsAt))}` })
+        if (account?.weekly) list.push({ id: "ollama.weekly", label: row(used(account.weekly.remaining))("Weekly"), detail: `resets ${when(new Date(account.weekly.resetsAt))}` })
         if (account && account.purchased > 0) list.push({ id: "ollama.credits", label: `$${account.purchased.toFixed(2)} purchased credits` })
       } else if (provider === "github-copilot") {
         const premium = copilot()
