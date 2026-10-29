@@ -59,11 +59,14 @@ export function status(now: Date, providerID: string, modelID: string): PeakStat
   return { peak, until: new Date(until) }
 }
 
-/** "2h 14m", "38m", "<1m". */
+/** "2d 6h", "2h 14m", "38m", "<1m". */
 export function remaining(ms: number): string {
   const minutes = Math.max(0, Math.floor(ms / 60_000))
   if (minutes < 1) return "<1m"
   if (minutes < 60) return `${minutes}m`
 
-  return `${Math.floor(minutes / 60)}h ${minutes % 60}m`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `${hours}h ${minutes % 60}m`
+
+  return `${Math.floor(hours / 24)}d ${hours % 24}h`
 }

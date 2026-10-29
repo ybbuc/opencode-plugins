@@ -1,14 +1,11 @@
 import { ComposerPill, Plugin, Style } from "@opencode/plugin/gui"
 import { createSignal, onCleanup } from "solid-js"
+import { remaining } from "../peak/peak.ts"
 import { Balance, type Ollama } from "./usage.ts"
 
-const clock = (date: Date) => date.toLocaleTimeString("en-US", { hourCycle: "h23", hour: "2-digit", minute: "2-digit" })
-const used = (remaining: number) => Math.round(100 - remaining)
-const dayOf = (date: Date) => date.toLocaleDateString("en-US", { month: "short", day: "numeric" })
-const day = (date: string) => dayOf(new Date(`${date}T00:00:00`))
-// A clock alone hides a reset days away; show the day unless it is today.
-const when = (date: Date) =>
-  dayOf(date) === dayOf(new Date()) ? clock(date) : `${dayOf(date)} ${clock(date)}`
+const used = (percent: number) => Math.round(100 - percent)
+// A date-only reset ("2026-11-01") means local midnight, not UTC.
+const midnight = (date: string) => new Date(`${date}T00:00:00`).getTime()
 // Rows render in the pill's proportional sans font, where padded character counts do not line up.
 // Monospace makes the bar columns meet; nbsp survives HTML whitespace collapsing.
 const css = `[data-slot="session-plugin-pill-row"] { font-family: var(--v2-font-family-code) }`
@@ -62,6 +59,8 @@ export default Plugin.define({
     const [ollama, setOllama] = createSignal<Ollama | undefined>()
     const [go, setGo] = createSignal<Go | undefined>()
     const [copilot, setCopilot] = createSignal<Copilot | undefined>()
+    // Read by the rows: a countdown is only right if it ticks.
+    const [now, setNow] = createSignal(Date.now())
     const balance = ctx.main(Balance)
 
     const load = async () => {
@@ -112,24 +111,30 @@ export default Plugin.define({
 
     void load()
     const refresh = setInterval(() => void load(), 5 * 60_000)
-    onCleanup(() => clearInterval(refresh))
+    const tick = setInterval(() => setNow(Date.now()), 60_000)
+    onCleanup(() => {
+      clearInterval(refresh)
+      clearInterval(tick)
+    })
+
+    const reset = (at: number) => (Number.isFinite(at) ? `resets in ${remaining(at - now())}` : "")
 
     const rows = (provider: string | undefined) => {
       const list = []
 
       if (provider === "opencode-go") {
         const value = go()
-        if (value?.rolling) list.push({ id: "go.rolling", label: row(value.rolling.percent)("Session"), detail: `resets ${when(new Date(value.rolling.resetsAt))}` })
-        if (value?.weekly) list.push({ id: "go.weekly", label: row(value.weekly.percent)("Weekly"), detail: `resets ${when(new Date(value.weekly.resetsAt))}` })
-        if (value?.monthly) list.push({ id: "go.monthly", label: row(value.monthly.percent)("Monthly"), detail: `resets ${when(new Date(value.monthly.resetsAt))}` })
+        if (value?.rolling) list.push({ id: "go.rolling", label: row(value.rolling.percent)("Session"), detail: reset(value.rolling.resetsAt) })
+        if (value?.weekly) list.push({ id: "go.weekly", label: row(value.weekly.percent)("Weekly"), detail: reset(value.weekly.resetsAt) })
+        if (value?.monthly) list.push({ id: "go.monthly", label: row(value.monthly.percent)("Monthly"), detail: reset(value.monthly.resetsAt) })
       } else if (provider === "ollama-cloud") {
         const account = ollama()
-        if (account?.session) list.push({ id: "ollama.session", label: row(used(account.session.remaining))("Session"), detail: `resets ${when(new Date(account.session.resetsAt))}` })
-        if (account?.weekly) list.push({ id: "ollama.weekly", label: row(used(account.weekly.remaining))("Weekly"), detail: `resets ${when(new Date(account.weekly.resetsAt))}` })
+        if (account?.session) list.push({ id: "ollama.session", label: row(used(account.session.remaining))("Session"), detail: reset(new Date(account.session.resetsAt).getTime()) })
+        if (account?.weekly) list.push({ id: "ollama.weekly", label: row(used(account.weekly.remaining))("Weekly"), detail: reset(new Date(account.weekly.resetsAt).getTime()) })
         if (account && account.purchased > 0) list.push({ id: "ollama.credits", label: `$${account.purchased.toFixed(2)} purchased credits` })
       } else if (provider === "github-copilot") {
         const premium = copilot()
-        if (premium) list.push({ id: "copilot.premium", label: row(premium.used)("Credits"), detail: `resets ${day(premium.resets)}` })
+        if (premium) list.push({ id: "copilot.premium", label: row(premium.used)("Credits"), detail: reset(midnight(premium.resets)) })
       }
 
       return list.length > 0 ? list : undefined
