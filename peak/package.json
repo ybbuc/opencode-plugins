@@ -1,0 +1,23 @@
+{
+  "name": "peak",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./index.ts",
+    "./gui-experimental": "./gui-experimental.cjs"
+  },
+  "scripts": {
+    "build": "vite build",
+    "watch": "vite build --watch",
+    "test": "node --test peak.test.ts",
+    "typecheck": "tsc"
+  },
+  "devDependencies": {
+    "@opencode/plugin": "2.2.1",
+    "@types/node": "26.6.5",
+    "solid-js": "1.9.17",
+    "typescript": "7.0.2",
+    "vite": "7.3.7",
+    "vite-plugin-solid": "2.11.10"
+  }
+}

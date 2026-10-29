@@ -1,0 +1,39 @@
+import { ComposerPill, Plugin, Style } from "@opencode/plugin/gui"
+import { createSignal, onCleanup } from "solid-js"
+import { remaining, status } from "./peak.ts"
+
+const clock = (date: Date) => `${String(date.getUTCHours()).padStart(2, "0")}:${String(date.getUTCMinutes()).padStart(2, "0")} UTC`
+
+// The pill has no color field; its phase only reaches CSS through the aria-label it takes from `title`.
+const css = `
+[data-slot="session-plugin-pill"][aria-label^="peak"] { color: var(--v2-state-fg-warning) }
+[data-slot="session-plugin-pill"][aria-label^="off-peak"] { color: var(--v2-state-fg-success) }
+`
+
+export default Plugin.define({
+  setup(ctx) {
+    const [now, setNow] = createSignal(Date.now())
+    const timer = setInterval(() => setNow(Date.now()), 60_000)
+    onCleanup(() => clearInterval(timer))
+
+    ctx.add(Style, css)
+
+    ctx.add(ComposerPill, {
+      id: "peak",
+      show: (input) => {
+        const model = input.screen.composer.model()
+        if (!model) return
+
+        const at = now()
+        const state = status(new Date(at), model.providerID, model.modelID)
+        if (!state) return
+
+        const phase = state.peak ? "peak" : "off-peak"
+        return {
+          label: `${phase} · ${remaining(state.until.getTime() - at)} left`,
+          title: `${phase} pricing until ${clock(state.until)}`,
+        }
+      },
+    })
+  },
+})
