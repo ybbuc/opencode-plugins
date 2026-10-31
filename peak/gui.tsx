@@ -2,7 +2,8 @@ import { ComposerPill, Plugin, Style } from "@opencode/plugin/gui"
 import { createSignal, onCleanup } from "solid-js"
 import { remaining, status } from "./peak.ts"
 
-const clock = (date: Date) => `${String(date.getUTCHours()).padStart(2, "0")}:${String(date.getUTCMinutes()).padStart(2, "0")} UTC`
+const clock = (date: Date) =>
+  `${date.toUTCString().slice(0, 3)} ${String(date.getUTCHours()).padStart(2, "0")}:${String(date.getUTCMinutes()).padStart(2, "0")} UTC`
 
 // The pill has no color field; its phase only reaches CSS through the aria-label it takes from `title`.
 const css = `
