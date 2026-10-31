@@ -1,7 +1,8 @@
 import { ComposerPill, Plugin, Style } from "@opencode/plugin/gui"
 import { createSignal, onCleanup } from "solid-js"
 import { remaining } from "../peak/peak.ts"
-import { Balance, type Ollama } from "./usage.ts"
+import { parse as parseChatGpt, usageUrl } from "./chatgpt.ts"
+import { Balance, Usage, type ChatGpt, type Ollama } from "./usage.ts"
 
 const used = (percent: number) => Math.round(100 - percent)
 // A date-only reset ("2026-11-01") means local midnight, not UTC.
@@ -19,11 +20,21 @@ const bar = (percent: number) => {
   return "▮".repeat(filled) + "▯".repeat(10 - filled)
 }
 
-type Credential = { integrationID: string; value: { type: string; key?: string; access?: string } }
+type Credential = {
+  integrationID: string
+  value: { type: string; key?: string; access?: string; metadata?: { accountID?: string } }
+}
 type Copilot = { used: number; resets: string }
 type Included = { remaining_percent: number; resets_at: string }
 type GoWindow = { percent: number; resetsAt: number; limited: boolean }
 type Go = { rolling?: GoWindow; weekly?: GoWindow; monthly?: GoWindow }
+
+const names: Record<string, string> = {
+  "opencode-go": "OpenCode Go",
+  "ollama-cloud": "Ollama Cloud",
+  "github-copilot": "GitHub Copilot",
+  openai: "OpenAI",
+}
 
 export default Plugin.define({
   main(ctx) {
@@ -51,6 +62,22 @@ export default Plugin.define({
         }
       },
     })
+
+    ctx.provide(Usage, {
+      usage: async ({ access, accountID }) => {
+        const response = await fetch(usageUrl, {
+          headers: {
+            authorization: `Bearer ${access}`,
+            "chatgpt-account-id": accountID,
+            originator: "opencode",
+            "user-agent": "opencode",
+          },
+        })
+        if (!response.ok) throw new Error(`chatgpt.com answered ${response.status}`)
+
+        return parseChatGpt(await response.json())
+      },
+    })
   },
 
   setup(ctx) {
@@ -59,9 +86,11 @@ export default Plugin.define({
     const [ollama, setOllama] = createSignal<Ollama | undefined>()
     const [go, setGo] = createSignal<Go | undefined>()
     const [copilot, setCopilot] = createSignal<Copilot | undefined>()
+    const [chatgpt, setChatGpt] = createSignal<ChatGpt | undefined>()
     // Read by the rows: a countdown is only right if it ticks.
     const [now, setNow] = createSignal(Date.now())
     const balance = ctx.main(Balance)
+    const chatGptUsage = ctx.main(Usage)
 
     const load = async () => {
       try {
@@ -107,6 +136,20 @@ export default Plugin.define({
           // Keep the last reading.
         }
       }
+
+      // Only the Codex login yields a chatgpt.com token plus the account ID the usage endpoint wants.
+      const chatgpt = entries.find(
+        (entry) => entry.integrationID === "openai" && entry.value?.type === "oauth" && entry.value.metadata?.accountID,
+      )
+      const access = chatgpt?.value.access
+      const accountID = chatgpt?.value.metadata?.accountID
+      if (access && accountID) {
+        try {
+          setChatGpt(await chatGptUsage.usage({ access, accountID }))
+        } catch {
+          // Keep the last reading.
+        }
+      }
     }
 
     void load()
@@ -135,6 +178,10 @@ export default Plugin.define({
       } else if (provider === "github-copilot") {
         const premium = copilot()
         if (premium) list.push({ id: "copilot.premium", label: row(premium.used)("Credits"), detail: reset(midnight(premium.resets)) })
+      } else if (provider === "openai") {
+        const value = chatgpt()
+        if (value?.session) list.push({ id: "openai.session", label: row(value.session.used)("Session"), detail: reset(value.session.resetsAt) })
+        if (value?.weekly) list.push({ id: "openai.weekly", label: row(value.weekly.used)("Weekly"), detail: reset(value.weekly.resetsAt) })
       }
 
       return list.length > 0 ? list : undefined
@@ -158,10 +205,15 @@ export default Plugin.define({
         } else if (provider === "github-copilot") {
           const premium = copilot()
           if (premium) parts.push(`credits ${premium.used}%`)
+        } else if (provider === "openai") {
+          const value = chatgpt()
+          if (value?.session) parts.push(`session ${value.session.used}%`)
+          if (value?.weekly) parts.push(`weekly ${value.weekly.used}%`)
         }
 
         if (parts.length === 0) return
-        return { label: parts.join(" · "), title: "Usage", rows: rows(provider) }
+        const name = provider ? names[provider] : undefined
+        return { label: parts.join(" · "), title: `${name ?? "Provider"} Usage`, rows: rows(provider) }
       },
     })
   },

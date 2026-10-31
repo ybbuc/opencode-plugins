@@ -15,6 +15,7 @@
   "scripts": {
     "build": "vite build",
     "watch": "vite build --watch",
+    "test": "node --test chatgpt.test.ts",
     "typecheck": "tsc"
   },
   "devDependencies": {

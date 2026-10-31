@@ -1,13 +1,16 @@
 /** @jsxImportSource @opentui/solid */
 import { Plugin } from "@opencode/plugin/tui"
 import { createSignal } from "solid-js"
+import { parse as parseChatGpt, usageUrl, type Usage as ChatGpt } from "./chatgpt.ts"
 
 type GoWindow = { percent: number; resetsAt: number; limited: boolean }
 type Go = { rolling?: GoWindow; weekly?: GoWindow; monthly?: GoWindow }
-type Credential = { integrationID: string; value: { type: string; key?: string; access?: string } }
+type Credential = {
+  integrationID: string
+  value: { type: string; key?: string; access?: string; metadata?: { accountID?: string } }
+}
 type Included = { remaining_percent: number; resets_at: string }
 type Ollama = { session?: { remaining: number }; weekly?: { remaining: number }; purchased: number }
-
 const used = (percent: number) => Math.round(100 - percent)
 
 export default Plugin.define({
@@ -16,6 +19,7 @@ export default Plugin.define({
     const [go, setGo] = createSignal<Go>()
     const [ollama, setOllama] = createSignal<Ollama>()
     const [copilot, setCopilot] = createSignal<number>()
+    const [chatgpt, setChatGpt] = createSignal<ChatGpt>()
 
     // The terminal can reach these hosts directly, so it skips the GUI's IPC hop.
     const load = async () => {
@@ -73,6 +77,28 @@ export default Plugin.define({
           // Keep the last reading.
         }
       }
+
+      // Only the Codex login yields a chatgpt.com token plus the account ID the usage endpoint wants.
+      const chatgpt = entries.find(
+        (entry) => entry.integrationID === "openai" && entry.value?.type === "oauth" && entry.value.metadata?.accountID,
+      )
+      const access = chatgpt?.value.access
+      const accountID = chatgpt?.value.metadata?.accountID
+      if (access && accountID) {
+        try {
+          const response = await fetch(usageUrl, {
+            headers: {
+              authorization: `Bearer ${access}`,
+              "chatgpt-account-id": accountID,
+              originator: "opencode",
+              "user-agent": "opencode",
+            },
+          })
+          if (response.ok) setChatGpt(parseChatGpt(await response.json()))
+        } catch {
+          // Keep the last reading.
+        }
+      }
     }
 
     void load()
@@ -96,6 +122,10 @@ export default Plugin.define({
         } else if (provider === "github-copilot") {
           const credits = copilot()
           if (credits !== undefined) parts.push(`credits ${credits}%`)
+        } else if (provider === "openai") {
+          const value = chatgpt()
+          if (value?.session) parts.push(`session ${value.session.used}%`)
+          if (value?.weekly) parts.push(`weekly ${value.weekly.used}%`)
         }
 
         return parts.length > 0 ? <text>{parts.join(" · ")}</text> : null

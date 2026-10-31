@@ -16,3 +16,18 @@ export const Balance = Ipc.define({
   id: "quota.ollama",
   methods: { balance: { input: Schema.String, output: Ollama } },
 })
+
+const Meter = Schema.Struct({ used: Schema.Number, resetsAt: Schema.Number })
+
+export const ChatGpt = Schema.Struct({
+  session: Schema.optional(Meter),
+  weekly: Schema.optional(Meter),
+})
+
+export type ChatGpt = typeof ChatGpt.Type
+
+// chatgpt.com needs the OAuth token and a non-browser User-Agent, so it cannot run in the window either.
+export const Usage = Ipc.define({
+  id: "quota.chatgpt",
+  methods: { usage: { input: Schema.Struct({ access: Schema.String, accountID: Schema.String }), output: ChatGpt } },
+})
