@@ -128,7 +128,7 @@ export default Plugin.define({
           if (value?.weekly) parts.push(`weekly ${value.weekly.used}%`)
         }
 
-        return parts.length > 0 ? <text>{parts.join(" · ")}</text> : null
+        return parts.length > 0 ? <text>{parts.join(" | ")}</text> : null
       },
     })
 

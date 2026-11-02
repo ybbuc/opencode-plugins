@@ -2,6 +2,7 @@ import { ComposerPill, Plugin, Style } from "@opencode/plugin/gui"
 import { createSignal, onCleanup } from "solid-js"
 import { remaining } from "../peak/peak.ts"
 import { parse as parseChatGpt, usageUrl } from "./chatgpt.ts"
+import { project, projectLinear } from "./pace.ts"
 import { Balance, Usage, type ChatGpt, type Ollama } from "./usage.ts"
 
 const used = (percent: number) => Math.round(100 - percent)
@@ -201,19 +202,28 @@ export default Plugin.define({
         } else if (provider === "ollama-cloud") {
           const account = ollama()
           if (account?.session) parts.push(`session ${used(account.session.remaining)}%`)
-          if (account?.weekly) parts.push(`weekly ${used(account.weekly.remaining)}%`)
+          if (account?.weekly) {
+            const projected = projectLinear(100 - account.weekly.remaining, Date.parse(account.weekly.resetsAt), 7 * 86_400_000, now())
+            parts.push(`weekly ${used(account.weekly.remaining)}%${projected === undefined ? "" : ` → ${Math.round(projected)}%`}`)
+          }
         } else if (provider === "github-copilot") {
           const premium = copilot()
-          if (premium) parts.push(`credits ${premium.used}%`)
+          if (premium) {
+            const projected = project(premium.used, midnight(premium.resets), now())
+            parts.push(`credits ${premium.used}%${projected === undefined ? "" : ` → ${Math.round(projected)}%`}`)
+          }
         } else if (provider === "openai") {
           const value = chatgpt()
           if (value?.session) parts.push(`session ${value.session.used}%`)
-          if (value?.weekly) parts.push(`weekly ${value.weekly.used}%`)
+          if (value?.weekly) {
+            const projected = projectLinear(value.weekly.used, value.weekly.resetsAt, 7 * 86_400_000, now())
+            parts.push(`weekly ${value.weekly.used}%${projected === undefined ? "" : ` → ${Math.round(projected)}%`}`)
+          }
         }
 
         if (parts.length === 0) return
         const name = provider ? names[provider] : undefined
-        return { label: parts.join(" · "), title: `${name ?? "Provider"} Usage`, rows: rows(provider) }
+        return { label: parts.join(" | "), title: `${name ?? "Provider"} Usage`, rows: rows(provider) }
       },
     })
   },
