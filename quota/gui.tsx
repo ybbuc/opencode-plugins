@@ -14,7 +14,7 @@ const css = `[data-slot="session-plugin-pill-row"] { font-family: var(--v2-font-
 const NBSP = "\u00A0"
 
 const row = (percent: number) => (name: string) =>
-  `${name.padEnd(7, NBSP)}${NBSP}${bar(percent)}${NBSP}${percent}%`
+  `${name.padEnd(7, NBSP)}${NBSP}${bar(percent)}${NBSP}${`${Math.round(percent)}%`.padStart(4, NBSP)}`
 const bar = (percent: number) => {
   const filled = Math.max(0, Math.min(10, Math.round(percent / 10)))
   return "▮".repeat(filled) + "▯".repeat(10 - filled)
