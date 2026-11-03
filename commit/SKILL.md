@@ -86,9 +86,11 @@ Interpret hints in the invocation text. Also honor plain-language requests
    and call it again until `ok` is true.
 
 8. **Confirm.** Unless `--no-confirm` was passed or the user already approved,
-   ask with the `question` tool rather than a plain-text "Commit?". The desktop
-   renders a question prompt as a single collapsed line, so never put the
-   message in it:
+   ask with the `question` tool rather than a plain-text "Commit?". Never go
+   from `commit_check` straight to `git commit`: the shell permission dialog
+   for `git commit` shows the command, not the message, and is not approval.
+   The desktop renders a question prompt as a single collapsed line, so never
+   put the message in it:
    - **single commit**: print the exact message in your reply as a fenced
      `text` block, then ask one question whose prompt is one line ("Commit this
      message?"), with the fixed options `Commit`, `Edit message`, `Cancel`.
@@ -123,7 +125,8 @@ Interpret hints in the invocation text. Also honor plain-language requests
   it silently. When splitting or given `--paths`, stage exactly that subset and
   keep files out of a commit they don't belong to.
 - Staging (`git add`) happens in step 9, immediately before the commit. Do not
-  stage as a side effect of collecting context.
+  stage as a side effect of collecting context, and never stage or commit before
+  the user answered step 8.
 - Never add `Co-Authored-By`, sign-off, or tool/agent attribution unless the
   user explicitly asks.
 - Never put secrets, tokens, or `.env` contents in the message; if the diff
