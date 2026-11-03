@@ -25,7 +25,7 @@ type Credential = {
   integrationID: string
   value: { type: string; key?: string; access?: string; metadata?: { accountID?: string } }
 }
-type Copilot = { used: number; resets: string }
+type Copilot = { used: number; plan?: string; resetsAt: number }
 type Included = { remaining_percent: number; resets_at: string }
 type GoWindow = { percent: number; resetsAt: number; limited: boolean }
 type Go = { rolling?: GoWindow; weekly?: GoWindow; monthly?: GoWindow }
@@ -125,12 +125,17 @@ export default Plugin.define({
           })
           if (response.ok) {
             const body = (await response.json()) as {
+              copilot_plan?: string
               quota_snapshots?: { premium_interactions?: { percent_remaining?: number; unlimited?: boolean } }
               quota_reset_date?: string
+              quota_reset_date_utc?: string
             }
             const premium = body.quota_snapshots?.premium_interactions
             if (premium && !premium.unlimited && typeof premium.percent_remaining === "number") {
-              setCopilot({ used: used(premium.percent_remaining), resets: body.quota_reset_date ?? "" })
+              const resetsAt = body.quota_reset_date_utc
+                ? Date.parse(body.quota_reset_date_utc)
+                : midnight(body.quota_reset_date ?? "")
+              setCopilot({ used: used(premium.percent_remaining), plan: body.copilot_plan, resetsAt })
             }
           }
         } catch {
@@ -178,7 +183,7 @@ export default Plugin.define({
         if (account && account.purchased > 0) list.push({ id: "ollama.credits", label: `$${account.purchased.toFixed(2)} purchased credits` })
       } else if (provider === "github-copilot") {
         const premium = copilot()
-        if (premium) list.push({ id: "copilot.premium", label: row(premium.used)("Credits"), detail: reset(midnight(premium.resets)) })
+        if (premium) list.push({ id: "copilot.premium", label: row(premium.used)("Credits"), detail: reset(premium.resetsAt) })
       } else if (provider === "openai") {
         const value = chatgpt()
         if (value?.session) list.push({ id: "openai.session", label: row(value.session.used)("Session"), detail: reset(value.session.resetsAt) })
@@ -209,7 +214,7 @@ export default Plugin.define({
         } else if (provider === "github-copilot") {
           const premium = copilot()
           if (premium) {
-            const projected = project(premium.used, midnight(premium.resets), now())
+            const projected = project(premium.used, premium.resetsAt, now())
             parts.push(`credits ${premium.used}%${projected === undefined ? "" : ` → ${Math.round(projected)}%`}`)
           }
         } else if (provider === "openai") {
@@ -223,7 +228,8 @@ export default Plugin.define({
 
         if (parts.length === 0) return
         const name = provider ? names[provider] : undefined
-        return { label: parts.join(" | "), title: `${name ?? "Provider"} Usage`, rows: rows(provider) }
+        const plan = provider === "github-copilot" ? copilot()?.plan : undefined
+        return { label: parts.join(" | "), title: `${name ?? "Provider"} Usage${plan ? ` (${plan})` : ""}`, rows: rows(provider) }
       },
     })
   },
