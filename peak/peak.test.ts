@@ -47,6 +47,7 @@ test("remaining", () => {
   assert.equal(remaining(59_000), "<1m")
   assert.equal(remaining(38 * 60_000), "38m")
   assert.equal(remaining((2 * 60 + 14) * 60_000), "2h 14m")
+  assert.equal(remaining(10 * 60 * 60_000), "10h")
   assert.equal(remaining(24 * 60 * 60_000), "1d")
   assert.equal(remaining(47 * 60 * 60_000), "1d 23h")
   assert.equal(remaining(48 * 60 * 60_000), "2d")
