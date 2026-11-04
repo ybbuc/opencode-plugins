@@ -217,15 +217,6 @@ export async function check({
   return { ok: problems.length === 0, problems, message: final, file }
 }
 
-/**
- * Path passed to `-F` in a `git commit` shell command, if any. Used to show the
- * message in the permission dialog, where the command alone does not.
- */
-export function commitMessageFile(command: string): string | undefined {
-  const match = /git commit\b[^&|;]*?\s-F\s+("[^"]+"|\S+)/.exec(command)
-  return match?.[1].replace(/^"|"$/g, "")
-}
-
 // Split "---\nname: ...\ndescription: ...\n---\nbody" into fields + body.
 function parseSkill(text: string) {
   const match = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/.exec(text)
@@ -252,18 +243,6 @@ const plugin = {
         path: skillFile as Skill.Info["path"],
         content: skill.content,
       })
-    })
-
-    // The permission dialog is the last gate before a commit: give it the
-    // message, so a skipped confirmation step cannot hide what is committed.
-    await ctx.permission.hook("evaluate", async (evaluation) => {
-      const file = evaluation.action === "shell" && commitMessageFile(evaluation.resources.join(" "))
-      if (!file) return
-      try {
-        evaluation.message = (await readFile(file, "utf8")).trimEnd()
-      } catch {
-        // Not a message file we wrote (or already cleaned up): leave the prompt alone.
-      }
     })
 
     await ctx.tool.transform((editor) => {
