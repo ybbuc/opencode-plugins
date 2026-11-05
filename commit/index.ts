@@ -201,15 +201,11 @@ export async function gitContext({
 export async function check({
   message,
   noType = false,
-  wrap = 70,
-  noReflow = false,
 }: {
   message: string
   noType?: boolean
-  wrap?: number
-  noReflow?: boolean
 }) {
-  const final = noReflow ? (message.endsWith("\n") ? message : message + "\n") : reflow(message, wrap)
+  const final = reflow(message)
   const problems = checkMessage(final, { noType })
   // ponytail: temp file left for `git commit -F`; $TMPDIR cleanup handles it.
   const file = path.join(await mkdtemp(path.join(os.tmpdir(), "commit-msg-")), "MSG")
@@ -275,8 +271,6 @@ const plugin = {
           properties: {
             message: { type: "string" },
             noType: { type: "boolean" },
-            wrap: { type: "integer", minimum: 1 },
-            noReflow: { type: "boolean" },
           },
           required: ["message"],
           additionalProperties: false,
