@@ -136,16 +136,16 @@ export async function gitContext({
   const git = (...args: string[]) => gitIn(root, ...args)
 
   const branch = (await attempt(git("symbolic-ref", "--short", "-q", "HEAD")))?.trim() || "(detached HEAD)"
-  const emptyTree = (await git("hash-object", "-t", "tree", "/dev/null")).trim()
+  const emptyTree = async () => (await git("hash-object", "-t", "tree", "/dev/null")).trim()
   const hasHead = (await attempt(git("rev-parse", "-q", "--verify", "HEAD"))) !== undefined
 
   let base = "HEAD"
   let baseLabel = "HEAD"
   if (!hasHead) {
-    base = emptyTree
+    base = await emptyTree()
     baseLabel = "empty tree (no commits yet)"
   } else if (amend) {
-    base = (await attempt(git("rev-parse", "-q", "--verify", "HEAD~1")))?.trim() || emptyTree
+    base = (await attempt(git("rev-parse", "-q", "--verify", "HEAD~1")))?.trim() || (await emptyTree())
     baseLabel = "HEAD~1 (amending HEAD)"
   }
 
