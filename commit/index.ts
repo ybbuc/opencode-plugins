@@ -2,8 +2,8 @@
 //
 // Owns the commit skill (SKILL.md) and exposes its deterministic steps as typed
 // tools:
-//   commit_context  -> gitContext(): read-only working-tree context
-//   commit_check    -> reflow() then checkMessage(), plus a file for `git commit -F`
+//   tools.commit.context -> gitContext(): read-only working-tree context
+//   tools.commit.check   -> reflow() then checkMessage(), plus a file for `git commit -F`
 //
 // The judgment (what to commit, how to split, the message itself) stays in the
 // skill, which setup() registers from the SKILL.md beside this file.

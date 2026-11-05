@@ -9,7 +9,7 @@ Write and create a professional, conventional-commit-style commit from the chang
 
 ## Workflow
 
-1. **Collect context.** Call the `commit_context` tool (`amend: true` only if the user asks to amend the last commit). Read the branch, recent commit subjects (to match house style), working-tree status, the diff summary and diff, and untracked files. Paths are relative to the repo root. If the working tree is clean, say so and stop, unless amending, where a message-only amend is valid. If it prints a **possible secret files** warning, ask the user before including those files.
+1. **Collect context.** Call the `tools.commit.context` tool (`amend: true` only if the user asks to amend the last commit). Read the branch, recent commit subjects (to match house style), working-tree status, the diff summary and diff, and untracked files. Paths are relative to the repo root. If the working tree is clean, say so and stop, unless amending, where a message-only amend is valid. If it prints a **possible secret files** warning, ask the user before including those files.
 
 2. **Resolve selection.** Default to **all** uncommitted changes.
    - If the user names files or asks to leave some out, select accordingly.
@@ -30,7 +30,7 @@ Write and create a professional, conventional-commit-style commit from the chang
 
 6. **Draft the message**, following `references/message-format.md`: subject line → blank line → `- ` bullets of what changed → blank line → one paragraph explaining **why**.
 
-7. **Reflow, then validate.** Pass the draft to the `commit_check` tool (`noType: true` when the message has no type prefix). It reflows, validates, and returns `ok`, the `problems` found, the final `message`, and a `file` holding it for step 9. Fix every problem and call it again until `ok` is true.
+7. **Reflow, then validate.** Pass the draft to the `tools.commit.check` tool (`noType: true` when the message has no type prefix). It reflows, validates, and returns `ok`, the `problems` found, the final `message`, and a `file` holding it for step 9. Fix every problem and call it again until `ok` is true.
 
 8. **Confirm.** Show the exact validated message in your final reply, ask for approval in plain text, and end the turn. Wait for the user's response before any further tool calls.
    - **single commit**: list the included paths, print the returned `message` unchanged in a fenced `text` block, and finish with: "Commit with this message?"
@@ -60,5 +60,5 @@ Write and create a professional, conventional-commit-style commit from the chang
 
 ## Files
 
-- `index.ts` — the plugin: `commit_context` (`gitContext`) and `commit_check` (`reflow` + `checkMessage`). Run `npm test` and `npm run typecheck` after editing it.
+- `index.ts` — the plugin: `tools.commit.context` (`gitContext`) and `tools.commit.check` (`reflow` + `checkMessage`). Run `npm test` and `npm run typecheck` after editing it.
 - `references/message-format.md` — types, scope, subject, brief vs detailed.
