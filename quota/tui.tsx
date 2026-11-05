@@ -2,6 +2,7 @@
 import { Plugin } from "@opencode/plugin/tui"
 import { createSignal } from "solid-js"
 import { parse as parseChatGpt, usageUrl, type Usage as ChatGpt } from "./chatgpt.ts"
+import { project } from "./pace.ts"
 
 type GoWindow = { percent: number; resetsAt: number; limited: boolean }
 type Go = { rolling?: GoWindow; weekly?: GoWindow; monthly?: GoWindow }
@@ -11,15 +12,19 @@ type Credential = {
 }
 type Included = { remaining_percent: number; resets_at: string }
 type Ollama = { session?: { remaining: number }; weekly?: { remaining: number }; purchased: number }
+type Copilot = { used: number; resetsAt: number }
 const used = (percent: number) => Math.round(100 - percent)
+// Date-only resets mean local midnight, not UTC.
+const midnight = (date: string) => new Date(`${date}T00:00:00`).getTime()
 
 export default Plugin.define({
   id: "quota",
   setup(ctx) {
     const [go, setGo] = createSignal<Go>()
     const [ollama, setOllama] = createSignal<Ollama>()
-    const [copilot, setCopilot] = createSignal<number>()
+    const [copilot, setCopilot] = createSignal<Copilot>()
     const [chatgpt, setChatGpt] = createSignal<ChatGpt>()
+    const [now, setNow] = createSignal(Date.now())
 
     // The terminal can reach these hosts directly, so it skips the GUI's IPC hop.
     const load = async () => {
@@ -67,10 +72,15 @@ export default Plugin.define({
           if (response.ok) {
             const body = (await response.json()) as {
               quota_snapshots?: { premium_interactions?: { percent_remaining?: number; unlimited?: boolean } }
+              quota_reset_date?: string
+              quota_reset_date_utc?: string
             }
             const premium = body.quota_snapshots?.premium_interactions
             if (premium && !premium.unlimited && typeof premium.percent_remaining === "number") {
-              setCopilot(used(premium.percent_remaining))
+              const resetsAt = body.quota_reset_date_utc
+                ? Date.parse(body.quota_reset_date_utc)
+                : midnight(body.quota_reset_date ?? "")
+              setCopilot({ used: used(premium.percent_remaining), resetsAt })
             }
           }
         } catch {
@@ -103,6 +113,7 @@ export default Plugin.define({
 
     void load()
     const refresh = setInterval(() => void load(), 5 * 60_000)
+    const tick = setInterval(() => setNow(Date.now()), 60_000)
 
     ctx.ui.slot({
       append: "prompt.footer.status",
@@ -121,7 +132,10 @@ export default Plugin.define({
           if (account?.weekly) parts.push(`weekly ${used(account.weekly.remaining)}%`)
         } else if (provider === "github-copilot") {
           const credits = copilot()
-          if (credits !== undefined) parts.push(`credits ${credits}%`)
+          if (credits) {
+            const projected = project(credits.used, credits.resetsAt, now())
+            parts.push(`credits ${credits.used}%${projected === undefined ? "" : ` → ${Math.round(projected)}%`}`)
+          }
         } else if (provider === "openai") {
           const value = chatgpt()
           if (value?.session) parts.push(`session ${value.session.used}%`)
@@ -132,6 +146,9 @@ export default Plugin.define({
       },
     })
 
-    return () => clearInterval(refresh)
+    return () => {
+      clearInterval(refresh)
+      clearInterval(tick)
+    }
   },
 })
