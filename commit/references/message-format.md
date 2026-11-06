@@ -35,15 +35,15 @@ Optional. Add `(scope)` when one module, component, or area stands out from the 
 
 ## Brief
 
-The subject line only.
+The subject line only. Use it when the subject alone says what changed and why, with no breaking change to explain, or when the user asks for brief.
 
-## Detailed (default)
+## Detailed
 
-Three parts separated by blank lines:
+Use it otherwise, or when the user asks for detailed. Three parts separated by blank lines:
 
 1. **Subject line.**
-2. **Bullets** (`-`, never `*`): each distinct change, naming the files or areas touched.
-3. **Why paragraph**: one non-bulleted paragraph explaining the reason and its effect on the rest of the codebase, so that someone who knows the codebase but not this change understands why it was made.
+2. **Bullets** (`-`, never `*`): only for distinct changes, naming the files or areas touched. Leave out any bullet that only restates the subject.
+3. **Why paragraph**: one non-bulleted paragraph of one or two sentences explaining the reason and its effect on the rest of the codebase, so that someone who knows the codebase but not this change understands why it was made.
 
 Communicate intent rather than restating the diff, and do not guess intent the diff and session do not support. Professional tone. No section labels ("Summary:", "Rationale:"), no markdown fences.
 

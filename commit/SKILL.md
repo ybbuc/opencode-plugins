@@ -28,7 +28,7 @@ Write and create a professional, conventional-commit-style commit from the chang
 
 5. **Choose the type:** the type of the single dominant change, or `none` when recent subjects mostly have no type. Follow a type the user names (`type=none`, or "fix the parser" means `fix`). Add a scope when a clear module/area emerges, and a ticket prefix when recent subjects use one. See `references/message-format.md` for types, scope, and subject rules.
 
-6. **Draft the message**, following `references/message-format.md`: subject line → blank line → `- ` bullets of what changed → blank line → one paragraph explaining **why**.
+6. **Draft the message**, following `references/message-format.md`, which decides between brief and detailed. Honor a brief or detailed request from the user. Detailed is: subject line → blank line → `- ` bullets for distinct changes, if any → blank line → a one- or two-sentence paragraph explaining **why**.
 
 7. **Reflow, then validate.** Pass the draft to the `tools.commit.check` tool (`noType: true` when the message has no type prefix). It reflows, validates, and returns `ok`, the `problems` found, the final `message`, and a `file` holding it for step 9. Fix every problem and call it again until `ok` is true.
 
