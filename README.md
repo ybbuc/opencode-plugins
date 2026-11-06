@@ -6,14 +6,6 @@ Plugins for [OpenCode V2](https://opencode.ai/v2/docs/) that help you write Git 
 - **[peak](#peak)** — peak/off-peak pricing status and a countdown in the terminal and desktop app.
 - **[quota](#quota)** — account usage, reset times, and usage projections for supported providers.
 
-## Contents
-
-- [Installation](#installation)
-- [commit](#commit)
-- [peak](#peak)
-- [quota](#quota)
-- [Updating and removing plugins](#updating-and-removing-plugins)
-
 ## Installation
 
 You need [OpenCode V2](https://opencode.ai/v2/docs/) and Git.
