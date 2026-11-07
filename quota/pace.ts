@@ -69,9 +69,13 @@ export function project(used: number, resetsAt: number, now: number): number | u
   return (used * total) / elapsed
 }
 
+const DAY = 86_400_000
+
+/** Extrapolates using whole elapsed days, treating the first partial day as a full day. */
 export function projectLinear(used: number, resetsAt: number, duration: number, now: number): number | undefined {
-  if (![used, resetsAt, duration, now].every(Number.isFinite) || used < 0 || used > 100 || duration <= 0) return
-  const elapsed = now - (resetsAt - duration)
-  if (elapsed <= 0 || now >= resetsAt) return
-  return (used * duration) / elapsed
+  if (![used, resetsAt, duration, now].every(Number.isFinite) || used < 0 || used > 100) return
+  const days = Math.floor(duration / DAY)
+  const elapsed = Math.floor((now - (resetsAt - duration)) / DAY)
+  if (days < 1 || elapsed < 0 || elapsed >= days) return
+  return (used * days) / Math.max(1, elapsed)
 }

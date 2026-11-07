@@ -31,12 +31,23 @@ test("no projection without a window", () => {
   assert.equal(project(60, reset, reset), undefined)
 })
 
-test("linear projections use elapsed time even on weekends and holidays", () => {
-  const sessionReset = new Date(2026, 0, 1, 15).getTime()
-  const weeklyReset = new Date(2026, 0, 7, 0).getTime()
-  assert.equal(projectLinear(60, sessionReset, 18_000_000, new Date(2026, 0, 1, 12, 30).getTime()), 120)
-  assert.equal(projectLinear(40, weeklyReset, 604_800_000, new Date(2026, 0, 3, 12).getTime()), 80)
-  assert.equal(projectLinear(0, sessionReset, 18_000_000, sessionReset - 1), 0)
+test("linear projections count whole elapsed days", () => {
+  const end = new Date(2026, 0, 8).getTime()
+  const start = end - 604_800_000
+  assert.equal(projectLinear(1, end, 604_800_000, start + 86_400_000 - 1), 7)
+  assert.equal(projectLinear(1, end, 604_800_000, start + 86_400_000), 7)
+  assert.equal(projectLinear(40, end, 604_800_000, start + 3 * 86_400_000), (40 * 7) / 3)
+  assert.equal(projectLinear(0, end, 604_800_000, start + 86_400_000), 0)
+})
+
+test("the first day's usage is treated as a full day's usage", () => {
+  const end = new Date(2026, 0, 8).getTime()
+  const start = end - 604_800_000
+  assert.equal(projectLinear(1, end, 604_800_000, start), 7)
+  assert.equal(projectLinear(1, end, 604_800_000, start + 15 * 60_000), 7)
+  assert.equal(projectLinear(4, end, 604_800_000, start + 12 * 3_600_000), 28)
+  assert.equal(projectLinear(1, end, 604_800_000, start - 1), undefined)
+  assert.equal(projectLinear(1, end, 604_800_000, end), undefined)
 })
 
 test("linear projections are hidden for invalid or inactive windows", () => {
