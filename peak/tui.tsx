@@ -1,7 +1,7 @@
 /** @jsxImportSource @opentui/solid */
 import { Plugin } from "@opencode/plugin/tui"
 import { createSignal } from "solid-js"
-import { remaining, status } from "./peak.ts"
+import { formatRemainingTime, status } from "./peak.ts"
 
 export default Plugin.define({
   id: "peak",
@@ -15,11 +15,11 @@ export default Plugin.define({
         const model = ctx.ui.model.current()
         if (!model) return null
 
-        const at = now()
-        const state = status(new Date(at), model.providerID, model.modelID)
-        if (!state) return null
+        const nowMs = now()
+        const peakState = status(new Date(nowMs), model.providerID, model.modelID)
+        if (!peakState) return null
 
-        return <text>{`${state.peak ? "peak" : "off-peak"} · ${remaining(state.until.getTime() - at)} left`}</text>
+        return <text>{`${peakState.isPeak ? "peak" : "off-peak"} · ${formatRemainingTime(peakState.nextTransitionAt.getTime() - nowMs)} left`}</text>
       },
     })
 

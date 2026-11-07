@@ -1,11 +1,11 @@
 import { ComposerPill, Plugin, Style } from "@opencode/plugin/gui"
 import { createSignal, onCleanup } from "solid-js"
-import { remaining } from "../peak/peak.ts"
-import { parse as parseChatGpt, usageUrl } from "./chatgpt.ts"
-import { project, projectLinear } from "./pace.ts"
-import { Balance, Usage, type ChatGpt, type Ollama } from "./usage.ts"
+import { formatRemainingTime } from "../peak/peak.ts"
+import { CHATGPT_USAGE_URL, parse as parseChatGpt } from "./chatgpt.ts"
+import { projectDailyUsage, projectMonthlyUsage } from "./pace.ts"
+import { ChatGptUsageService, OllamaBalanceService, type ChatGptUsage, type OllamaBalance } from "./usage.ts"
 
-const used = (percent: number) => Math.round(100 - percent)
+const toUsedPercent = (remainingPercent: number) => Math.round(100 - remainingPercent)
 // A date-only reset ("2026-11-01") means local midnight, not UTC.
 const midnight = (date: string) => new Date(`${date}T00:00:00`).getTime()
 // Rows render in the pill's proportional sans font, where padded character counts do not line up.
@@ -14,10 +14,10 @@ const css = `[data-slot="session-plugin-pill-row"] { font-family: var(--v2-font-
 
 const NBSP = "\u00A0"
 
-const row = (percent: number) => (name: string) =>
-  `${name.padEnd(7, NBSP)}${NBSP}${bar(percent)}${NBSP}${`${Math.round(percent)}%`.padStart(4, NBSP)}`
-const bar = (percent: number) => {
-  const filled = Math.max(0, Math.min(10, Math.round(percent / 10)))
+const formatUsageRow = (usedPercent: number) => (name: string) =>
+  `${name.padEnd(7, NBSP)}${NBSP}${formatUsageBar(usedPercent)}${NBSP}${`${Math.round(usedPercent)}%`.padStart(4, NBSP)}`
+const formatUsageBar = (usedPercent: number) => {
+  const filled = Math.max(0, Math.min(10, Math.round(usedPercent / 10)))
   return "▮".repeat(filled) + "▯".repeat(10 - filled)
 }
 
@@ -25,12 +25,12 @@ type Credential = {
   integrationID: string
   value: { type: string; key?: string; access?: string; metadata?: { accountID?: string } }
 }
-type Copilot = { used: number; plan?: string; resetsAt: number }
-type Included = { remaining_percent: number; resets_at: string }
+type CopilotUsage = { usedPercent: number; plan?: string; resetsAt: number }
+type OllamaIncludedWindow = { remaining_percent: number; resets_at: string }
 type GoWindow = { percent: number; resetsAt: number; limited: boolean }
-type Go = { rolling?: GoWindow; weekly?: GoWindow; monthly?: GoWindow }
+type GoUsage = { rolling?: GoWindow; weekly?: GoWindow; monthly?: GoWindow }
 
-const names: Record<string, string> = {
+const providerNames: Record<string, string> = {
   "opencode-go": "OpenCode Go",
   "ollama-cloud": "Ollama Cloud",
   "github-copilot": "GitHub Copilot",
@@ -39,7 +39,7 @@ const names: Record<string, string> = {
 
 export default Plugin.define({
   main(ctx) {
-    ctx.provide(Balance, {
+    ctx.provide(OllamaBalanceService, {
       balance: async (key) => {
         const response = await fetch("https://ollama.com/api/balance", {
           headers: { authorization: `Bearer ${key}` },
@@ -47,26 +47,26 @@ export default Plugin.define({
         if (!response.ok) throw new Error(`ollama.com answered ${response.status}`)
 
         const body = (await response.json()) as {
-          included?: { session?: Included; weekly?: Included }
+          included?: { session?: OllamaIncludedWindow; weekly?: OllamaIncludedWindow }
           purchased?: { balance_usd?: number }
         }
-        const window = (value?: Included) =>
-          value && { remaining: value.remaining_percent, resetsAt: value.resets_at }
+        const readWindow = (value?: OllamaIncludedWindow) =>
+          value && { remainingPercent: value.remaining_percent, resetsAt: value.resets_at }
 
-        const session = window(body.included?.session)
-        const weekly = window(body.included?.weekly)
+        const session = readWindow(body.included?.session)
+        const weekly = readWindow(body.included?.weekly)
 
         return {
-          purchased: body.purchased?.balance_usd ?? 0,
+          purchasedUsd: body.purchased?.balance_usd ?? 0,
           ...(session ? { session } : {}),
           ...(weekly ? { weekly } : {}),
         }
       },
     })
 
-    ctx.provide(Usage, {
+    ctx.provide(ChatGptUsageService, {
       usage: async ({ access, accountID }) => {
-        const response = await fetch(usageUrl, {
+        const response = await fetch(CHATGPT_USAGE_URL, {
           headers: {
             authorization: `Bearer ${access}`,
             "chatgpt-account-id": accountID,
@@ -84,18 +84,18 @@ export default Plugin.define({
   setup(ctx) {
     ctx.add(Style, css)
 
-    const [ollama, setOllama] = createSignal<Ollama | undefined>()
-    const [go, setGo] = createSignal<Go | undefined>()
-    const [copilot, setCopilot] = createSignal<Copilot | undefined>()
-    const [chatgpt, setChatGpt] = createSignal<ChatGpt | undefined>()
+    const [ollama, setOllama] = createSignal<OllamaBalance | undefined>()
+    const [go, setGo] = createSignal<GoUsage | undefined>()
+    const [copilot, setCopilot] = createSignal<CopilotUsage | undefined>()
+    const [chatGptReading, setChatGptReading] = createSignal<ChatGptUsage | undefined>()
     // Read by the rows: a countdown is only right if it ticks.
     const [now, setNow] = createSignal(Date.now())
-    const balance = ctx.main(Balance)
-    const chatGptUsage = ctx.main(Usage)
+    const balance = ctx.main(OllamaBalanceService)
+    const chatGptUsage = ctx.main(ChatGptUsageService)
 
     const load = async () => {
       try {
-        const limits = (await ctx.client.experimental.usage.limits()) as unknown as { data: { go?: Go } | null }
+        const limits = (await ctx.client.experimental.usage.limits()) as unknown as { data: { go?: GoUsage } | null }
         setGo(limits.data?.go)
       } catch {
         // Keep the last reading.
@@ -108,20 +108,20 @@ export default Plugin.define({
         return
       }
 
-      const key = entries.find((entry) => entry.integrationID === "ollama-cloud" && entry.value?.type === "key")?.value.key
-      if (key) {
+      const ollamaKey = entries.find((entry) => entry.integrationID === "ollama-cloud" && entry.value?.type === "key")?.value.key
+      if (ollamaKey) {
         try {
-          setOllama(await balance.balance(key))
+          setOllama(await balance.balance(ollamaKey))
         } catch {
           // Keep the last reading.
         }
       }
 
-      const token = entries.find((entry) => entry.integrationID === "github-copilot" && entry.value?.type === "oauth")?.value.access
-      if (token) {
+      const copilotToken = entries.find((entry) => entry.integrationID === "github-copilot" && entry.value?.type === "oauth")?.value.access
+      if (copilotToken) {
         try {
           const response = await fetch("https://api.github.com/copilot_internal/user", {
-            headers: { authorization: `token ${token}`, accept: "application/json" },
+            headers: { authorization: `token ${copilotToken}`, accept: "application/json" },
           })
           if (response.ok) {
             const body = (await response.json()) as {
@@ -135,7 +135,7 @@ export default Plugin.define({
               const resetsAt = body.quota_reset_date_utc
                 ? Date.parse(body.quota_reset_date_utc)
                 : midnight(body.quota_reset_date ?? "")
-              setCopilot({ used: used(premium.percent_remaining), plan: body.copilot_plan, resetsAt })
+              setCopilot({ usedPercent: toUsedPercent(premium.percent_remaining), plan: body.copilot_plan, resetsAt })
             }
           }
         } catch {
@@ -144,14 +144,14 @@ export default Plugin.define({
       }
 
       // Only the Codex login yields a chatgpt.com token plus the account ID the usage endpoint wants.
-      const chatgpt = entries.find(
+      const chatGptCredential = entries.find(
         (entry) => entry.integrationID === "openai" && entry.value?.type === "oauth" && entry.value.metadata?.accountID,
       )
-      const access = chatgpt?.value.access
-      const accountID = chatgpt?.value.metadata?.accountID
+      const access = chatGptCredential?.value.access
+      const accountID = chatGptCredential?.value.metadata?.accountID
       if (access && accountID) {
         try {
-          setChatGpt(await chatGptUsage.usage({ access, accountID }))
+          setChatGptReading(await chatGptUsage.usage({ access, accountID }))
         } catch {
           // Keep the last reading.
         }
@@ -166,28 +166,28 @@ export default Plugin.define({
       clearInterval(tick)
     })
 
-    const reset = (at: number) => (Number.isFinite(at) ? `resets in ${remaining(at - now())}` : "")
+    const formatResetCountdown = (at: number) => (Number.isFinite(at) ? `resets in ${formatRemainingTime(at - now())}` : "")
 
     const rows = (provider: string | undefined) => {
       const list = []
 
       if (provider === "opencode-go") {
         const value = go()
-        if (value?.rolling) list.push({ id: "go.rolling", label: row(value.rolling.percent)("Session"), detail: reset(value.rolling.resetsAt) })
-        if (value?.weekly) list.push({ id: "go.weekly", label: row(value.weekly.percent)("Weekly"), detail: reset(value.weekly.resetsAt) })
-        if (value?.monthly) list.push({ id: "go.monthly", label: row(value.monthly.percent)("Monthly"), detail: reset(value.monthly.resetsAt) })
+        if (value?.rolling) list.push({ id: "go.rolling", label: formatUsageRow(value.rolling.percent)("Session"), detail: formatResetCountdown(value.rolling.resetsAt) })
+        if (value?.weekly) list.push({ id: "go.weekly", label: formatUsageRow(value.weekly.percent)("Weekly"), detail: formatResetCountdown(value.weekly.resetsAt) })
+        if (value?.monthly) list.push({ id: "go.monthly", label: formatUsageRow(value.monthly.percent)("Monthly"), detail: formatResetCountdown(value.monthly.resetsAt) })
       } else if (provider === "ollama-cloud") {
         const account = ollama()
-        if (account?.session) list.push({ id: "ollama.session", label: row(used(account.session.remaining))("Session"), detail: reset(new Date(account.session.resetsAt).getTime()) })
-        if (account?.weekly) list.push({ id: "ollama.weekly", label: row(used(account.weekly.remaining))("Weekly"), detail: reset(new Date(account.weekly.resetsAt).getTime()) })
-        if (account && account.purchased > 0) list.push({ id: "ollama.credits", label: `$${account.purchased.toFixed(2)} purchased credits` })
+        if (account?.session) list.push({ id: "ollama.session", label: formatUsageRow(toUsedPercent(account.session.remainingPercent))("Session"), detail: formatResetCountdown(new Date(account.session.resetsAt).getTime()) })
+        if (account?.weekly) list.push({ id: "ollama.weekly", label: formatUsageRow(toUsedPercent(account.weekly.remainingPercent))("Weekly"), detail: formatResetCountdown(new Date(account.weekly.resetsAt).getTime()) })
+        if (account && account.purchasedUsd > 0) list.push({ id: "ollama.credits", label: `$${account.purchasedUsd.toFixed(2)} purchased credits` })
       } else if (provider === "github-copilot") {
         const premium = copilot()
-        if (premium) list.push({ id: "copilot.premium", label: row(premium.used)("Credits"), detail: reset(premium.resetsAt) })
+        if (premium) list.push({ id: "copilot.premium", label: formatUsageRow(premium.usedPercent)("Credits"), detail: formatResetCountdown(premium.resetsAt) })
       } else if (provider === "openai") {
-        const value = chatgpt()
-        if (value?.session) list.push({ id: "openai.session", label: row(value.session.used)("Session"), detail: reset(value.session.resetsAt) })
-        if (value?.weekly) list.push({ id: "openai.weekly", label: row(value.weekly.used)("Weekly"), detail: reset(value.weekly.resetsAt) })
+        const value = chatGptReading()
+        if (value?.session) list.push({ id: "openai.session", label: formatUsageRow(value.session.usedPercent)("Session"), detail: formatResetCountdown(value.session.resetsAt) })
+        if (value?.weekly) list.push({ id: "openai.weekly", label: formatUsageRow(value.weekly.usedPercent)("Weekly"), detail: formatResetCountdown(value.weekly.resetsAt) })
       }
 
       return list.length > 0 ? list : undefined
@@ -206,28 +206,28 @@ export default Plugin.define({
           if (value?.monthly) parts.push(`monthly ${value.monthly.percent}%`)
         } else if (provider === "ollama-cloud") {
           const account = ollama()
-          if (account?.session) parts.push(`session ${used(account.session.remaining)}%`)
+          if (account?.session) parts.push(`session ${toUsedPercent(account.session.remainingPercent)}%`)
           if (account?.weekly) {
-            const projected = projectLinear(100 - account.weekly.remaining, Date.parse(account.weekly.resetsAt), 7 * 86_400_000, now())
-            parts.push(`weekly ${used(account.weekly.remaining)}%${projected === undefined ? "" : ` → ${Math.round(projected)}%`}`)
+            const projected = projectDailyUsage(100 - account.weekly.remainingPercent, Date.parse(account.weekly.resetsAt), 7 * 86_400_000, now())
+            parts.push(`weekly ${toUsedPercent(account.weekly.remainingPercent)}%${projected === undefined ? "" : ` → ${Math.round(projected)}%`}`)
           }
         } else if (provider === "github-copilot") {
           const premium = copilot()
           if (premium) {
-            const projected = project(premium.used, premium.resetsAt, now())
-            parts.push(`credits ${premium.used}%${projected === undefined ? "" : ` → ${Math.round(projected)}%`}`)
+            const projected = projectMonthlyUsage(premium.usedPercent, premium.resetsAt, now())
+            parts.push(`credits ${premium.usedPercent}%${projected === undefined ? "" : ` → ${Math.round(projected)}%`}`)
           }
         } else if (provider === "openai") {
-          const value = chatgpt()
-          if (value?.session) parts.push(`session ${value.session.used}%`)
+          const value = chatGptReading()
+          if (value?.session) parts.push(`session ${value.session.usedPercent}%`)
           if (value?.weekly) {
-            const projected = projectLinear(value.weekly.used, value.weekly.resetsAt, 7 * 86_400_000, now())
-            parts.push(`weekly ${value.weekly.used}%${projected === undefined ? "" : ` → ${Math.round(projected)}%`}`)
+            const projected = projectDailyUsage(value.weekly.usedPercent, value.weekly.resetsAt, 7 * 86_400_000, now())
+            parts.push(`weekly ${value.weekly.usedPercent}%${projected === undefined ? "" : ` → ${Math.round(projected)}%`}`)
           }
         }
 
         if (parts.length === 0) return
-        const name = provider ? names[provider] : undefined
+        const name = provider ? providerNames[provider] : undefined
         const plan = provider === "github-copilot" ? copilot()?.plan : undefined
         return { label: parts.join(" | "), title: `${name ?? "Provider"} Usage${plan ? ` (${plan})` : ""}`, rows: rows(provider) }
       },

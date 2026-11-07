@@ -1,35 +1,35 @@
 /** @jsxImportSource @opentui/solid */
 import { Plugin } from "@opencode/plugin/tui"
 import { createSignal } from "solid-js"
-import { parse as parseChatGpt, usageUrl, type Usage as ChatGpt } from "./chatgpt.ts"
-import { project } from "./pace.ts"
+import { CHATGPT_USAGE_URL, parse as parseChatGpt, type ChatGptUsage } from "./chatgpt.ts"
+import { projectMonthlyUsage } from "./pace.ts"
 
 type GoWindow = { percent: number; resetsAt: number; limited: boolean }
-type Go = { rolling?: GoWindow; weekly?: GoWindow; monthly?: GoWindow }
+type GoUsage = { rolling?: GoWindow; weekly?: GoWindow; monthly?: GoWindow }
 type Credential = {
   integrationID: string
   value: { type: string; key?: string; access?: string; metadata?: { accountID?: string } }
 }
-type Included = { remaining_percent: number; resets_at: string }
-type Ollama = { session?: { remaining: number }; weekly?: { remaining: number }; purchased: number }
-type Copilot = { used: number; resetsAt: number }
-const used = (percent: number) => Math.round(100 - percent)
+type OllamaIncludedWindow = { remaining_percent: number; resets_at: string }
+type OllamaBalance = { session?: { remainingPercent: number }; weekly?: { remainingPercent: number }; purchasedUsd: number }
+type CopilotUsage = { usedPercent: number; resetsAt: number }
+const toUsedPercent = (remainingPercent: number) => Math.round(100 - remainingPercent)
 // Date-only resets mean local midnight, not UTC.
 const midnight = (date: string) => new Date(`${date}T00:00:00`).getTime()
 
 export default Plugin.define({
   id: "quota",
   setup(ctx) {
-    const [go, setGo] = createSignal<Go>()
-    const [ollama, setOllama] = createSignal<Ollama>()
-    const [copilot, setCopilot] = createSignal<Copilot>()
-    const [chatgpt, setChatGpt] = createSignal<ChatGpt>()
+    const [go, setGo] = createSignal<GoUsage>()
+    const [ollama, setOllama] = createSignal<OllamaBalance>()
+    const [copilot, setCopilot] = createSignal<CopilotUsage>()
+    const [chatGptReading, setChatGptReading] = createSignal<ChatGptUsage>()
     const [now, setNow] = createSignal(Date.now())
 
     // The terminal can reach these hosts directly, so it skips the GUI's IPC hop.
     const load = async () => {
       try {
-        const limits = (await ctx.client.experimental.usage.limits()) as unknown as { data: { go?: Go } | null }
+        const limits = (await ctx.client.experimental.usage.limits()) as unknown as { data: { go?: GoUsage } | null }
         setGo(limits.data?.go)
       } catch {
         // Keep the last reading.
@@ -42,32 +42,32 @@ export default Plugin.define({
         return
       }
 
-      const key = entries.find((entry) => entry.integrationID === "ollama-cloud" && entry.value?.type === "key")?.value.key
-      if (key) {
+      const ollamaKey = entries.find((entry) => entry.integrationID === "ollama-cloud" && entry.value?.type === "key")?.value.key
+      if (ollamaKey) {
         try {
           const response = await fetch("https://ollama.com/api/balance", {
-            headers: { authorization: `Bearer ${key}` },
+            headers: { authorization: `Bearer ${ollamaKey}` },
           })
           if (response.ok) {
             const body = (await response.json()) as {
-              included?: { session?: Included; weekly?: Included }
+              included?: { session?: OllamaIncludedWindow; weekly?: OllamaIncludedWindow }
               purchased?: { balance_usd?: number }
             }
-            const window = (value?: Included) => value && { remaining: value.remaining_percent }
-            const session = window(body.included?.session)
-            const weekly = window(body.included?.weekly)
-            setOllama({ purchased: body.purchased?.balance_usd ?? 0, ...(session ? { session } : {}), ...(weekly ? { weekly } : {}) })
+            const readWindow = (value?: OllamaIncludedWindow) => value && { remainingPercent: value.remaining_percent }
+            const session = readWindow(body.included?.session)
+            const weekly = readWindow(body.included?.weekly)
+            setOllama({ purchasedUsd: body.purchased?.balance_usd ?? 0, ...(session ? { session } : {}), ...(weekly ? { weekly } : {}) })
           }
         } catch {
           // Keep the last reading.
         }
       }
 
-      const token = entries.find((entry) => entry.integrationID === "github-copilot" && entry.value?.type === "oauth")?.value.access
-      if (token) {
+      const copilotToken = entries.find((entry) => entry.integrationID === "github-copilot" && entry.value?.type === "oauth")?.value.access
+      if (copilotToken) {
         try {
           const response = await fetch("https://api.github.com/copilot_internal/user", {
-            headers: { authorization: `token ${token}`, accept: "application/json" },
+            headers: { authorization: `token ${copilotToken}`, accept: "application/json" },
           })
           if (response.ok) {
             const body = (await response.json()) as {
@@ -80,7 +80,7 @@ export default Plugin.define({
               const resetsAt = body.quota_reset_date_utc
                 ? Date.parse(body.quota_reset_date_utc)
                 : midnight(body.quota_reset_date ?? "")
-              setCopilot({ used: used(premium.percent_remaining), resetsAt })
+              setCopilot({ usedPercent: toUsedPercent(premium.percent_remaining), resetsAt })
             }
           }
         } catch {
@@ -89,14 +89,14 @@ export default Plugin.define({
       }
 
       // Only the Codex login yields a chatgpt.com token plus the account ID the usage endpoint wants.
-      const chatgpt = entries.find(
+      const chatGptCredential = entries.find(
         (entry) => entry.integrationID === "openai" && entry.value?.type === "oauth" && entry.value.metadata?.accountID,
       )
-      const access = chatgpt?.value.access
-      const accountID = chatgpt?.value.metadata?.accountID
+      const access = chatGptCredential?.value.access
+      const accountID = chatGptCredential?.value.metadata?.accountID
       if (access && accountID) {
         try {
-          const response = await fetch(usageUrl, {
+          const response = await fetch(CHATGPT_USAGE_URL, {
             headers: {
               authorization: `Bearer ${access}`,
               "chatgpt-account-id": accountID,
@@ -104,7 +104,7 @@ export default Plugin.define({
               "user-agent": "opencode",
             },
           })
-          if (response.ok) setChatGpt(parseChatGpt(await response.json()))
+          if (response.ok) setChatGptReading(parseChatGpt(await response.json()))
         } catch {
           // Keep the last reading.
         }
@@ -128,18 +128,18 @@ export default Plugin.define({
           if (value?.monthly) parts.push(`monthly ${value.monthly.percent}%`)
         } else if (provider === "ollama-cloud") {
           const account = ollama()
-          if (account?.session) parts.push(`session ${used(account.session.remaining)}%`)
-          if (account?.weekly) parts.push(`weekly ${used(account.weekly.remaining)}%`)
+          if (account?.session) parts.push(`session ${toUsedPercent(account.session.remainingPercent)}%`)
+          if (account?.weekly) parts.push(`weekly ${toUsedPercent(account.weekly.remainingPercent)}%`)
         } else if (provider === "github-copilot") {
-          const credits = copilot()
-          if (credits) {
-            const projected = project(credits.used, credits.resetsAt, now())
-            parts.push(`credits ${credits.used}%${projected === undefined ? "" : ` → ${Math.round(projected)}%`}`)
+          const copilotUsage = copilot()
+          if (copilotUsage) {
+            const projected = projectMonthlyUsage(copilotUsage.usedPercent, copilotUsage.resetsAt, now())
+            parts.push(`credits ${copilotUsage.usedPercent}%${projected === undefined ? "" : ` → ${Math.round(projected)}%`}`)
           }
         } else if (provider === "openai") {
-          const value = chatgpt()
-          if (value?.session) parts.push(`session ${value.session.used}%`)
-          if (value?.weekly) parts.push(`weekly ${value.weekly.used}%`)
+          const value = chatGptReading()
+          if (value?.session) parts.push(`session ${value.session.usedPercent}%`)
+          if (value?.weekly) parts.push(`weekly ${value.weekly.usedPercent}%`)
         }
 
         return parts.length > 0 ? <text>{parts.join(" | ")}</text> : null

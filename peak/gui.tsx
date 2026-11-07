@@ -1,8 +1,8 @@
 import { ComposerPill, Plugin, Style } from "@opencode/plugin/gui"
 import { createSignal, onCleanup } from "solid-js"
-import { remaining, status } from "./peak.ts"
+import { formatRemainingTime, status } from "./peak.ts"
 
-const clock = (date: Date) =>
+const formatUtcClock = (date: Date) =>
   `${date.toUTCString().slice(0, 3)} ${String(date.getUTCHours()).padStart(2, "0")}:${String(date.getUTCMinutes()).padStart(2, "0")} UTC`
 
 // The pill has no color field; its phase only reaches CSS through the aria-label it takes from `title`.
@@ -25,14 +25,14 @@ export default Plugin.define({
         const model = input.screen.composer.model()
         if (!model) return
 
-        const at = now()
-        const state = status(new Date(at), model.providerID, model.modelID)
-        if (!state) return
+        const nowMs = now()
+        const peakState = status(new Date(nowMs), model.providerID, model.modelID)
+        if (!peakState) return
 
-        const phase = state.peak ? "peak" : "off-peak"
+        const phase = peakState.isPeak ? "peak" : "off-peak"
         return {
-          label: `${phase} · ${remaining(state.until.getTime() - at)} left`,
-          title: `${phase} pricing until ${clock(state.until)}`,
+          label: `${phase} · ${formatRemainingTime(peakState.nextTransitionAt.getTime() - nowMs)} left`,
+          title: `${phase} pricing until ${formatUtcClock(peakState.nextTransitionAt)}`,
         }
       },
     })

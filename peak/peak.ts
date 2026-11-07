@@ -3,34 +3,34 @@
 //   opencode:   https://opencode.ai/v2/docs/console/go/ — "01:00-04:00 and 06:00-10:00 UTC"
 // Weekends are off-peak for both.
 
-export type Window = readonly [startHour: number, endHour: number]
+export type PeakWindow = readonly [startHour: number, endHour: number]
 
 export interface PeakStatus {
-  readonly peak: boolean
+  readonly isPeak: boolean
   /** When the next phase starts. */
-  readonly until: Date
+  readonly nextTransitionAt: Date
 }
 
 const HOUR = 3_600_000
 const DAY = 86_400_000
 
-const PRICING: Record<string, { windows: readonly Window[]; models: readonly string[] }> = {
+const PRICING: Record<string, { windows: readonly PeakWindow[]; models: readonly string[] }> = {
   "ollama-cloud": { windows: [[12, 18]], models: ["deepseek-v4.1-flash", "deepseek-v4-pro"] },
   "opencode-go": { windows: [[1, 4], [6, 10]], models: ["deepseek-v4.1-flash", "deepseek-v4-pro"] },
 }
 
-const transitions = (from: Date, windows: readonly Window[]) => {
+const transitions = (from: Date, windows: readonly PeakWindow[]) => {
   const base = Date.UTC(from.getUTCFullYear(), from.getUTCMonth(), from.getUTCDate())
-  const out: { at: number; peak: boolean }[] = []
+  const out: { at: number; isPeak: boolean }[] = []
 
   for (let day = 0; day < 8; day++) {
     const start = base + day * DAY
-    const dow = new Date(start).getUTCDay()
-    if (dow === 0 || dow === 6) continue
+    const weekday = new Date(start).getUTCDay()
+    if (weekday === 0 || weekday === 6) continue
 
     for (const [open, close] of windows) {
-      out.push({ at: start + open * HOUR, peak: true })
-      out.push({ at: start + close * HOUR, peak: false })
+      out.push({ at: start + open * HOUR, isPeak: true })
+      out.push({ at: start + close * HOUR, isPeak: false })
     }
   }
 
@@ -42,25 +42,25 @@ export function status(now: Date, providerID: string, modelID: string): PeakStat
   const pricing = PRICING[providerID]
   if (!pricing?.models.some((model) => modelID.startsWith(model))) return
 
-  let peak = false
-  let until = now.getTime()
+  let isPeak = false
+  let nextTransitionAt = now.getTime()
 
-  for (const at of transitions(now, pricing.windows)) {
-    if (at.at <= now.getTime()) {
-      peak = at.peak
-      until = at.at
+  for (const transition of transitions(now, pricing.windows)) {
+    if (transition.at <= now.getTime()) {
+      isPeak = transition.isPeak
+      nextTransitionAt = transition.at
       continue
     }
 
-    until = at.at
+    nextTransitionAt = transition.at
     break
   }
 
-  return { peak, until: new Date(until) }
+  return { isPeak, nextTransitionAt: new Date(nextTransitionAt) }
 }
 
 /** "2d 6h", "2h 14m", "38m", "<1m". */
-export function remaining(ms: number): string {
+export function formatRemainingTime(ms: number): string {
   const minutes = Math.max(0, Math.floor(ms / 60_000))
   if (minutes < 1) return "<1m"
   if (minutes < 60) return `${minutes}m`

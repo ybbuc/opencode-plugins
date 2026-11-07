@@ -9,8 +9,8 @@ test("5-hour and weekly windows by slot", () => {
       secondary_window: { used_percent: 40, reset_at: 1_700_500_000, limit_window_seconds: 604_800 },
     },
   })
-  assert.deepEqual(usage.session, { used: 13, resetsAt: 1_700_000_000_000 })
-  assert.deepEqual(usage.weekly, { used: 40, resetsAt: 1_700_500_000_000 })
+  assert.deepEqual(usage.session, { usedPercent: 13, resetsAt: 1_700_000_000_000 })
+  assert.deepEqual(usage.weekly, { usedPercent: 40, resetsAt: 1_700_500_000_000 })
 })
 
 test("slot names are ignored when the durations say otherwise", () => {
@@ -21,7 +21,7 @@ test("slot names are ignored when the durations say otherwise", () => {
     },
   })
   assert.equal(usage.session, undefined)
-  assert.equal(usage.weekly?.used, 39)
+  assert.equal(usage.weekly?.usedPercent, 39)
 })
 
 test("windows without a duration or a percentage are skipped", () => {

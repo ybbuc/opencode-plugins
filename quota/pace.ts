@@ -58,24 +58,24 @@ const workdays = (from: number, to: number) => {
 }
 
 /** Extrapolates a monthly window's used percentage to its reset, spending only on workdays. */
-export function project(used: number, resetsAt: number, now: number): number | undefined {
+export function projectMonthlyUsage(usedPercent: number, resetsAt: number, now: number): number | undefined {
   if (!Number.isFinite(resetsAt)) return
   const start = new Date(resetsAt)
   start.setUTCMonth(start.getUTCMonth() - 1)
   const from = start.getTime()
-  const elapsed = workdays(from, now)
-  const total = workdays(from, resetsAt)
-  if (elapsed === 0 || elapsed >= total) return
-  return (used * total) / elapsed
+  const elapsedWorkdays = workdays(from, now)
+  const totalWorkdays = workdays(from, resetsAt)
+  if (elapsedWorkdays === 0 || elapsedWorkdays >= totalWorkdays) return
+  return (usedPercent * totalWorkdays) / elapsedWorkdays
 }
 
-const DAY = 86_400_000
+const DAY_MS = 86_400_000
 
 /** Extrapolates using whole elapsed days, treating the first partial day as a full day. */
-export function projectLinear(used: number, resetsAt: number, duration: number, now: number): number | undefined {
-  if (![used, resetsAt, duration, now].every(Number.isFinite) || used < 0 || used > 100) return
-  const days = Math.floor(duration / DAY)
-  const elapsed = Math.floor((now - (resetsAt - duration)) / DAY)
-  if (days < 1 || elapsed < 0 || elapsed >= days) return
-  return (used * days) / Math.max(1, elapsed)
+export function projectDailyUsage(usedPercent: number, resetsAt: number, durationMs: number, now: number): number | undefined {
+  if (![usedPercent, resetsAt, durationMs, now].every(Number.isFinite) || usedPercent < 0 || usedPercent > 100) return
+  const totalDays = Math.floor(durationMs / DAY_MS)
+  const elapsedDays = Math.floor((now - (resetsAt - durationMs)) / DAY_MS)
+  if (totalDays < 1 || elapsedDays < 0 || elapsedDays >= totalDays) return
+  return (usedPercent * totalDays) / Math.max(1, elapsedDays)
 }

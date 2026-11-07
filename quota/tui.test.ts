@@ -46,3 +46,27 @@ for (const { name, reset, expected } of [
     assert.equal(render()?.[2], expected)
   })
 }
+
+test("OpenCode Go usage reads the host's percent field", async (t) => {
+  let render: () => unknown[] | null = () => null
+  const cleanup = plugin.setup({
+    client: {
+      experimental: {
+        usage: {
+          limits: async () => ({
+            data: { go: { rolling: { percent: 25, resetsAt: 1_700_000_000_000, limited: false } } },
+          }),
+        },
+      },
+      credential: { list: async () => [] },
+    },
+    ui: {
+      model: { current: () => ({ providerID: "opencode-go" }) },
+      slot: (slot: { render: typeof render }) => { render = slot.render },
+    },
+  })
+  t.after(cleanup)
+  await setImmediate()
+
+  assert.equal(render()?.[2], "session 25%")
+})

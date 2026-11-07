@@ -39,11 +39,11 @@ export function checkMessage(text: string, { noType = false } = {}): string[] {
 
   // An optional ticket prefix ("ABC-123: ", "ABC-1/2/3: ") precedes everything else.
   const ticket = /^[A-Z][A-Z0-9]*-[0-9]+(\/[0-9]+)*: /.exec(subject)
-  const summary = ticket ? subject.slice(ticket[0].length) : subject
-  if (ticket && !summary) problems.push("nothing follows the ticket prefix")
+  const subjectWithoutTicket = ticket ? subject.slice(ticket[0].length) : subject
+  if (ticket && !subjectWithoutTicket) problems.push("nothing follows the ticket prefix")
 
-  const types = TYPES.join("|")
-  if (!noType && !new RegExp(`^(${types})(\\([^)]+\\))?!?: .+`).test(summary)) {
+  const typePattern = TYPES.join("|")
+  if (!noType && !new RegExp(`^(${typePattern})(\\([^)]+\\))?!?: .+`).test(subjectWithoutTicket)) {
     problems.push(`subject must match '[TICKET-1: ]type(scope): summary' (types: ${TYPES.join(", ")})`)
   }
 
@@ -53,7 +53,7 @@ export function checkMessage(text: string, { noType = false } = {}): string[] {
 
   if (subject.endsWith(".")) problems.push("subject must not end with a period")
 
-  if (!noType && new RegExp(`^(${types})(\\([^)]+\\))?!?: [A-Z]`).test(summary)) {
+  if (!noType && new RegExp(`^(${typePattern})(\\([^)]+\\))?!?: [A-Z]`).test(subjectWithoutTicket)) {
     problems.push("summary should start lowercase after the colon")
   }
 
@@ -158,10 +158,10 @@ export async function gitContext({
   sections.push(`== Working tree status ==\n${(await git("status", "--short")).trimEnd()}`)
 
   const untracked = (await git("ls-files", "--others", "--exclude-standard")).split("\n").filter(Boolean)
-  const changedNames = (await git("diff", base, "--name-only")).split("\n").filter(Boolean)
-  const secrets = [...changedNames, ...untracked].filter((name) => SECRET_FILE.test(name))
-  if (secrets.length > 0) {
-    sections.push(`== WARNING: possible secret files — confirm before committing ==\n${secrets.join("\n")}`)
+  const changedFiles = (await git("diff", base, "--name-only")).split("\n").filter(Boolean)
+  const possibleSecretFiles = [...changedFiles, ...untracked].filter((name) => SECRET_FILE.test(name))
+  if (possibleSecretFiles.length > 0) {
+    sections.push(`== WARNING: possible secret files — confirm before committing ==\n${possibleSecretFiles.join("\n")}`)
   }
 
   sections.push(`== Changes vs ${baseLabel} (summary) ==\n${(await git("diff", base, "--stat")).trimEnd()}`)
@@ -205,20 +205,20 @@ export async function check({
   message: string
   noType?: boolean
 }) {
-  const final = reflow(message)
-  const problems = checkMessage(final, { noType })
+  const formattedMessage = reflow(message)
+  const problems = checkMessage(formattedMessage, { noType })
   // ponytail: temp file left for `git commit -F`; $TMPDIR cleanup handles it.
   const file = path.join(await mkdtemp(path.join(os.tmpdir(), "commit-msg-")), "MSG")
-  await writeFile(file, final)
-  return { ok: problems.length === 0, problems, message: final, file }
+  await writeFile(file, formattedMessage)
+  return { ok: problems.length === 0, problems, message: formattedMessage, file }
 }
 
 // Split "---\nname: ...\ndescription: ...\n---\nbody" into fields + body.
 function parseSkill(text: string) {
   const match = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/.exec(text)
-  const front = match?.[1] ?? ""
+  const frontmatter = match?.[1] ?? ""
   const content = match?.[2] ?? text
-  const field = (key: string) => (new RegExp(`^${key}:\\s*(.*)$`, "m").exec(front)?.[1] ?? "").trim()
+  const field = (key: string) => (new RegExp(`^${key}:\\s*(.*)$`, "m").exec(frontmatter)?.[1] ?? "").trim()
   return { name: field("name"), description: field("description"), content }
 }
 
