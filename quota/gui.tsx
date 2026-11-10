@@ -167,6 +167,9 @@ export default Plugin.define({
     })
 
     const formatResetCountdown = (at: number) => (Number.isFinite(at) ? `resets in ${formatRemainingTime(at - now())}` : "")
+    // The window's position already implies its name, so the time until reset says more.
+    const windowLabel = (name: string, resetsAt: number) =>
+      Number.isFinite(resetsAt) ? formatRemainingTime(resetsAt - now()) : name
 
     const rows = (provider: string | undefined) => {
       const list = []
@@ -201,28 +204,30 @@ export default Plugin.define({
 
         if (provider === "opencode-go") {
           const value = go()
-          if (value?.rolling) parts.push(`session ${value.rolling.percent}%`)
-          if (value?.weekly) parts.push(`weekly ${value.weekly.percent}%`)
-          if (value?.monthly) parts.push(`monthly ${value.monthly.percent}%`)
+          if (value?.rolling) parts.push(`${windowLabel("session", value.rolling.resetsAt)} · ${value.rolling.percent}%`)
+          if (value?.weekly) parts.push(`${windowLabel("weekly", value.weekly.resetsAt)} · ${value.weekly.percent}%`)
+          if (value?.monthly) parts.push(`${windowLabel("monthly", value.monthly.resetsAt)} · ${value.monthly.percent}%`)
         } else if (provider === "ollama-cloud") {
           const account = ollama()
-          if (account?.session) parts.push(`session ${toUsedPercent(account.session.remainingPercent)}%`)
+          if (account?.session) {
+            parts.push(`${windowLabel("session", Date.parse(account.session.resetsAt))} · ${toUsedPercent(account.session.remainingPercent)}%`)
+          }
           if (account?.weekly) {
             const projected = projectDailyUsage(100 - account.weekly.remainingPercent, Date.parse(account.weekly.resetsAt), 7 * 86_400_000, now())
-            parts.push(`weekly ${toUsedPercent(account.weekly.remainingPercent)}%${projected === undefined ? "" : ` → ${Math.round(projected)}%`}`)
+            parts.push(`${windowLabel("weekly", Date.parse(account.weekly.resetsAt))} · ${toUsedPercent(account.weekly.remainingPercent)}%${projected === undefined ? "" : ` → ${Math.round(projected)}%`}`)
           }
         } else if (provider === "github-copilot") {
           const premium = copilot()
           if (premium) {
             const projected = projectMonthlyUsage(premium.usedPercent, premium.resetsAt, now())
-            parts.push(`credits ${premium.usedPercent}%${projected === undefined ? "" : ` → ${Math.round(projected)}%`}`)
+            parts.push(`${windowLabel("credits", premium.resetsAt)} · ${premium.usedPercent}%${projected === undefined ? "" : ` → ${Math.round(projected)}%`}`)
           }
         } else if (provider === "openai") {
           const value = chatGptReading()
-          if (value?.session) parts.push(`session ${value.session.usedPercent}%`)
+          if (value?.session) parts.push(`${windowLabel("session", value.session.resetsAt)} · ${value.session.usedPercent}%`)
           if (value?.weekly) {
             const projected = projectDailyUsage(value.weekly.usedPercent, value.weekly.resetsAt, 7 * 86_400_000, now())
-            parts.push(`weekly ${value.weekly.usedPercent}%${projected === undefined ? "" : ` → ${Math.round(projected)}%`}`)
+            parts.push(`${windowLabel("weekly", value.weekly.resetsAt)} · ${value.weekly.usedPercent}%${projected === undefined ? "" : ` → ${Math.round(projected)}%`}`)
           }
         }
 

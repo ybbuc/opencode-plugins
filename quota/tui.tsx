@@ -1,6 +1,7 @@
 /** @jsxImportSource @opentui/solid */
 import { Plugin } from "@opencode/plugin/tui"
 import { createSignal } from "solid-js"
+import { formatRemainingTime } from "../peak/peak.ts"
 import { CHATGPT_USAGE_URL, parse as parseChatGpt, type ChatGptUsage } from "./chatgpt.ts"
 import { projectMonthlyUsage } from "./pace.ts"
 
@@ -11,7 +12,8 @@ type Credential = {
   value: { type: string; key?: string; access?: string; metadata?: { accountID?: string } }
 }
 type OllamaIncludedWindow = { remaining_percent: number; resets_at: string }
-type OllamaBalance = { session?: { remainingPercent: number }; weekly?: { remainingPercent: number }; purchasedUsd: number }
+type OllamaWindow = { remainingPercent: number; resetsAt: string }
+type OllamaBalance = { session?: OllamaWindow; weekly?: OllamaWindow; purchasedUsd: number }
 type CopilotUsage = { usedPercent: number; resetsAt: number }
 const toUsedPercent = (remainingPercent: number) => Math.round(100 - remainingPercent)
 // Date-only resets mean local midnight, not UTC.
@@ -53,7 +55,8 @@ export default Plugin.define({
               included?: { session?: OllamaIncludedWindow; weekly?: OllamaIncludedWindow }
               purchased?: { balance_usd?: number }
             }
-            const readWindow = (value?: OllamaIncludedWindow) => value && { remainingPercent: value.remaining_percent }
+            const readWindow = (value?: OllamaIncludedWindow) =>
+              value && { remainingPercent: value.remaining_percent, resetsAt: value.resets_at }
             const session = readWindow(body.included?.session)
             const weekly = readWindow(body.included?.weekly)
             setOllama({ purchasedUsd: body.purchased?.balance_usd ?? 0, ...(session ? { session } : {}), ...(weekly ? { weekly } : {}) })
@@ -115,6 +118,10 @@ export default Plugin.define({
     const refresh = setInterval(() => void load(), 5 * 60_000)
     const tick = setInterval(() => setNow(Date.now()), 60_000)
 
+    // The window's position already implies its name, so the time until reset says more.
+    const windowLabel = (name: string, resetsAt: number) =>
+      Number.isFinite(resetsAt) ? formatRemainingTime(resetsAt - now()) : name
+
     ctx.ui.slot({
       append: "prompt.footer.status",
       render: () => {
@@ -123,23 +130,27 @@ export default Plugin.define({
 
         if (provider === "opencode-go") {
           const value = go()
-          if (value?.rolling) parts.push(`session ${value.rolling.percent}%`)
-          if (value?.weekly) parts.push(`weekly ${value.weekly.percent}%`)
-          if (value?.monthly) parts.push(`monthly ${value.monthly.percent}%`)
+          if (value?.rolling) parts.push(`${windowLabel("session", value.rolling.resetsAt)} · ${value.rolling.percent}%`)
+          if (value?.weekly) parts.push(`${windowLabel("weekly", value.weekly.resetsAt)} · ${value.weekly.percent}%`)
+          if (value?.monthly) parts.push(`${windowLabel("monthly", value.monthly.resetsAt)} · ${value.monthly.percent}%`)
         } else if (provider === "ollama-cloud") {
           const account = ollama()
-          if (account?.session) parts.push(`session ${toUsedPercent(account.session.remainingPercent)}%`)
-          if (account?.weekly) parts.push(`weekly ${toUsedPercent(account.weekly.remainingPercent)}%`)
+          if (account?.session) {
+            parts.push(`${windowLabel("session", Date.parse(account.session.resetsAt))} · ${toUsedPercent(account.session.remainingPercent)}%`)
+          }
+          if (account?.weekly) {
+            parts.push(`${windowLabel("weekly", Date.parse(account.weekly.resetsAt))} · ${toUsedPercent(account.weekly.remainingPercent)}%`)
+          }
         } else if (provider === "github-copilot") {
           const copilotUsage = copilot()
           if (copilotUsage) {
             const projected = projectMonthlyUsage(copilotUsage.usedPercent, copilotUsage.resetsAt, now())
-            parts.push(`credits ${copilotUsage.usedPercent}%${projected === undefined ? "" : ` → ${Math.round(projected)}%`}`)
+            parts.push(`${windowLabel("credits", copilotUsage.resetsAt)} · ${copilotUsage.usedPercent}%${projected === undefined ? "" : ` → ${Math.round(projected)}%`}`)
           }
         } else if (provider === "openai") {
           const value = chatGptReading()
-          if (value?.session) parts.push(`session ${value.session.usedPercent}%`)
-          if (value?.weekly) parts.push(`weekly ${value.weekly.usedPercent}%`)
+          if (value?.session) parts.push(`${windowLabel("session", value.session.resetsAt)} · ${value.session.usedPercent}%`)
+          if (value?.weekly) parts.push(`${windowLabel("weekly", value.weekly.resetsAt)} · ${value.weekly.usedPercent}%`)
         }
 
         return parts.length > 0 ? <text>{parts.join(" | ")}</text> : null

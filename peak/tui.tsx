@@ -19,7 +19,9 @@ export default Plugin.define({
         const peakState = status(new Date(nowMs), model.providerID, model.modelID)
         if (!peakState) return null
 
-        return <text>{`${peakState.isPeak ? "peak" : "off-peak"} · ${formatRemainingTime(peakState.nextTransitionAt.getTime() - nowMs)} left`}</text>
+        const feedback = peakState.isPeak ? ctx.theme.text.feedback.warning : ctx.theme.text.feedback.success
+
+        return <text fg={feedback.base}>{`${peakState.isPeak ? "peak" : "off-peak"} · ${formatRemainingTime(peakState.nextTransitionAt.getTime() - nowMs)} left`}</text>
       },
     })
 
