@@ -91,7 +91,7 @@ Messages use conventional-commit-style subjects, a 72-character subject limit, a
 Shows the selected model's pricing phase and time until the next phase. It appears in the **terminal prompt footer** and as a **desktop composer pill**. For example:
 
 ```text
-off-peak · 2h 14m left
+off-peak · 2h 14m
 ```
 
 Currently supports the `deepseek-v4.1-flash` and `deepseek-v4-pro` model families on these providers:

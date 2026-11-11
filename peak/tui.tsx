@@ -21,7 +21,7 @@ export default Plugin.define({
 
         const feedback = peakState.isPeak ? ctx.theme.text.feedback.warning : ctx.theme.text.feedback.success
 
-        return <text fg={feedback.base}>{`${peakState.isPeak ? "peak" : "off-peak"} · ${formatRemainingTime(peakState.nextTransitionAt.getTime() - nowMs)} left`}</text>
+        return <text fg={feedback.base}>{`${peakState.isPeak ? "peak" : "off-peak"} · ${formatRemainingTime(peakState.nextTransitionAt.getTime() - nowMs)}`}</text>
       },
     })
 

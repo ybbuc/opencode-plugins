@@ -31,7 +31,7 @@ export default Plugin.define({
 
         const phase = peakState.isPeak ? "peak" : "off-peak"
         return {
-          label: `${phase} · ${formatRemainingTime(peakState.nextTransitionAt.getTime() - nowMs)} left`,
+          label: `${phase} · ${formatRemainingTime(peakState.nextTransitionAt.getTime() - nowMs)}`,
           title: `${phase} pricing until ${formatUtcClock(peakState.nextTransitionAt)}`,
         }
       },
