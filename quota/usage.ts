@@ -31,3 +31,8 @@ export const ChatGptUsageService = Ipc.define({
   id: "quota.chatgpt",
   methods: { usage: { input: Schema.Struct({ access: Schema.String, accountID: Schema.String }), output: ChatGptUsage } },
 })
+
+export const ClaudeUsageService = Ipc.define({
+  id: "quota.claude",
+  methods: { usage: { output: ChatGptUsage } },
+})

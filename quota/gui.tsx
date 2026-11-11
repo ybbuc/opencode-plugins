@@ -2,8 +2,9 @@ import { ComposerPill, Plugin, Style } from "@opencode/plugin/gui"
 import { createSignal, onCleanup } from "solid-js"
 import { formatRemainingTime } from "../peak/peak.ts"
 import { CHATGPT_USAGE_URL, parse as parseChatGpt } from "./chatgpt.ts"
+import { loadUsage as loadClaudeUsage, type ClaudeUsage } from "./claude.ts"
 import { projectDailyUsage, projectMonthlyUsage } from "./pace.ts"
-import { ChatGptUsageService, OllamaBalanceService, type ChatGptUsage, type OllamaBalance } from "./usage.ts"
+import { ChatGptUsageService, ClaudeUsageService, OllamaBalanceService, type ChatGptUsage, type OllamaBalance } from "./usage.ts"
 
 const toUsedPercent = (remainingPercent: number) => Math.round(100 - remainingPercent)
 // A date-only reset ("2026-11-01") means local midnight, not UTC.
@@ -35,10 +36,13 @@ const providerNames: Record<string, string> = {
   "ollama-cloud": "Ollama Cloud",
   "github-copilot": "GitHub Copilot",
   openai: "OpenAI",
+  "claude-agent": "Claude",
 }
 
 export default Plugin.define({
   main(ctx) {
+    ctx.provide(ClaudeUsageService, { usage: loadClaudeUsage })
+
     ctx.provide(OllamaBalanceService, {
       balance: async (key) => {
         const response = await fetch("https://ollama.com/api/balance", {
@@ -88,10 +92,12 @@ export default Plugin.define({
     const [go, setGo] = createSignal<GoUsage | undefined>()
     const [copilot, setCopilot] = createSignal<CopilotUsage | undefined>()
     const [chatGptReading, setChatGptReading] = createSignal<ChatGptUsage | undefined>()
+    const [claude, setClaude] = createSignal<ClaudeUsage>()
     // Read by the rows: a countdown is only right if it ticks.
     const [now, setNow] = createSignal(Date.now())
     const balance = ctx.main(OllamaBalanceService)
     const chatGptUsage = ctx.main(ChatGptUsageService)
+    const claudeUsage = ctx.main(ClaudeUsageService)
 
     const load = async () => {
       try {
@@ -106,6 +112,14 @@ export default Plugin.define({
         entries = (await ctx.client.credential.list()) as unknown as Credential[]
       } catch {
         return
+      }
+
+      if (entries.some((entry) => entry.integrationID === "claude-agent" && entry.value?.type === "external")) {
+        try {
+          setClaude(await claudeUsage.usage())
+        } catch {
+          // Keep the last reading.
+        }
       }
 
       const ollamaKey = entries.find((entry) => entry.integrationID === "ollama-cloud" && entry.value?.type === "key")?.value.key
@@ -187,10 +201,10 @@ export default Plugin.define({
       } else if (provider === "github-copilot") {
         const premium = copilot()
         if (premium) list.push({ id: "copilot.premium", label: formatUsageRow(premium.usedPercent)("Credits"), detail: formatResetCountdown(premium.resetsAt) })
-      } else if (provider === "openai") {
-        const value = chatGptReading()
-        if (value?.session) list.push({ id: "openai.session", label: formatUsageRow(value.session.usedPercent)("Session"), detail: formatResetCountdown(value.session.resetsAt) })
-        if (value?.weekly) list.push({ id: "openai.weekly", label: formatUsageRow(value.weekly.usedPercent)("Weekly"), detail: formatResetCountdown(value.weekly.resetsAt) })
+      } else if (provider === "openai" || provider === "claude-agent") {
+        const value = provider === "claude-agent" ? claude() : chatGptReading()
+        if (value?.session) list.push({ id: `${provider}.session`, label: formatUsageRow(value.session.usedPercent)("Session"), detail: formatResetCountdown(value.session.resetsAt) })
+        if (value?.weekly) list.push({ id: `${provider}.weekly`, label: formatUsageRow(value.weekly.usedPercent)("Weekly"), detail: formatResetCountdown(value.weekly.resetsAt) })
       }
 
       return list.length > 0 ? list : undefined
@@ -204,30 +218,30 @@ export default Plugin.define({
 
         if (provider === "opencode-go") {
           const value = go()
-          if (value?.rolling) parts.push(`${windowLabel("session", value.rolling.resetsAt)} · ${value.rolling.percent}%`)
-          if (value?.weekly) parts.push(`${windowLabel("weekly", value.weekly.resetsAt)} · ${value.weekly.percent}%`)
-          if (value?.monthly) parts.push(`${windowLabel("monthly", value.monthly.resetsAt)} · ${value.monthly.percent}%`)
+          if (value?.rolling) parts.push(`${value.rolling.percent}% · ${windowLabel("session", value.rolling.resetsAt)}`)
+          if (value?.weekly) parts.push(`${value.weekly.percent}% · ${windowLabel("weekly", value.weekly.resetsAt)}`)
+          if (value?.monthly) parts.push(`${value.monthly.percent}% · ${windowLabel("monthly", value.monthly.resetsAt)}`)
         } else if (provider === "ollama-cloud") {
           const account = ollama()
           if (account?.session) {
-            parts.push(`${windowLabel("session", Date.parse(account.session.resetsAt))} · ${toUsedPercent(account.session.remainingPercent)}%`)
+            parts.push(`${toUsedPercent(account.session.remainingPercent)}% · ${windowLabel("session", Date.parse(account.session.resetsAt))}`)
           }
           if (account?.weekly) {
             const projected = projectDailyUsage(100 - account.weekly.remainingPercent, Date.parse(account.weekly.resetsAt), 7 * 86_400_000, now())
-            parts.push(`${windowLabel("weekly", Date.parse(account.weekly.resetsAt))} · ${toUsedPercent(account.weekly.remainingPercent)}%${projected === undefined ? "" : ` → ${Math.round(projected)}%`}`)
+            parts.push(`${toUsedPercent(account.weekly.remainingPercent)}%${projected === undefined ? "" : ` → ${Math.round(projected)}%`} · ${windowLabel("weekly", Date.parse(account.weekly.resetsAt))}`)
           }
         } else if (provider === "github-copilot") {
           const premium = copilot()
           if (premium) {
             const projected = projectMonthlyUsage(premium.usedPercent, premium.resetsAt, now())
-            parts.push(`${windowLabel("credits", premium.resetsAt)} · ${premium.usedPercent}%${projected === undefined ? "" : ` → ${Math.round(projected)}%`}`)
+            parts.push(`${premium.usedPercent}%${projected === undefined ? "" : ` → ${Math.round(projected)}%`} · ${windowLabel("credits", premium.resetsAt)}`)
           }
-        } else if (provider === "openai") {
-          const value = chatGptReading()
-          if (value?.session) parts.push(`${windowLabel("session", value.session.resetsAt)} · ${value.session.usedPercent}%`)
+        } else if (provider === "openai" || provider === "claude-agent") {
+          const value = provider === "claude-agent" ? claude() : chatGptReading()
+          if (value?.session) parts.push(`${value.session.usedPercent}% · ${windowLabel("session", value.session.resetsAt)}`)
           if (value?.weekly) {
             const projected = projectDailyUsage(value.weekly.usedPercent, value.weekly.resetsAt, 7 * 86_400_000, now())
-            parts.push(`${windowLabel("weekly", value.weekly.resetsAt)} · ${value.weekly.usedPercent}%${projected === undefined ? "" : ` → ${Math.round(projected)}%`}`)
+            parts.push(`${value.weekly.usedPercent}%${projected === undefined ? "" : ` → ${Math.round(projected)}%`} · ${windowLabel("weekly", value.weekly.resetsAt)}`)
           }
         }
 

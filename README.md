@@ -110,7 +110,7 @@ The schedules are [hard-coded](peak/peak.ts), not fetched live. Check [Ollama pr
 Shows usage for the **currently selected provider** in the terminal prompt footer and a desktop composer pill. Percentages show **usage consumed**, not remaining allowance. Illustrative output:
 
 ```text
-session 24% | weekly 38% → 76%
+24% · 2h 14m | 38% → 76% · 3d 4h
 ```
 
 The arrow is a projection of usage at the reset, not an additional quota. Desktop details include usage bars and reset countdowns, plus purchased Ollama credits when available.
@@ -121,12 +121,15 @@ The arrow is a projection of usage at the reset, not an additional quota. Deskto
 | Ollama Cloud (`ollama-cloud`) | Session and weekly usage | Ollama Cloud API key |
 | GitHub Copilot (`github-copilot`) | Premium-interaction usage and projected usage at reset | GitHub Copilot OAuth login with a finite premium-interaction quota |
 | ChatGPT (`openai`) | Session and weekly usage | ChatGPT/Codex OAuth login with an account ID; an OpenAI API key does not provide these subscription quotas |
+| Claude Agent (`claude-agent`) | Five-hour session and weekly usage | Claude Code subscription login; Anthropic API keys are not supported |
 
 Connect the provider through OpenCode first; the plugin reuses its stored credentials. There is no separate plugin credential setup, and `quota` works without enabling `peak`.
 
-Usage refreshes on load and every **five minutes**. Countdown and projection displays refresh every minute. Weekly projections for Ollama and ChatGPT are desktop-only; Copilot projections appear in both interfaces.
+Claude Agent uses Claude Code's own login: the default macOS `Claude Code-credentials` Keychain entry, or `~/.claude/.credentials.json` on other systems or when Keychain is unavailable. `CLAUDE_CONFIG_DIR` selects a file-backed login instead. Credentials are read-only; Claude Code remains responsible for refreshing them.
 
-If nothing appears, check the selected provider, its connection, and whether the account exposes the relevant quota. Unlimited Copilot premium quotas are not displayed. Failed refreshes keep the last successful reading, so the display can be stale. Provider usage endpoints, including GitHub's internal and ChatGPT's backend APIs, can change independently of this plugin.
+Usage refreshes on load and every **five minutes**. Claude backs off for 30 minutes after a rate-limit response. Countdown and projection displays refresh every minute. Weekly projections for Ollama, ChatGPT, and Claude Agent are desktop-only; Copilot projections appear in both interfaces.
+
+If nothing appears, check the selected provider, its connection, and whether the account exposes the relevant quota. Unlimited Copilot premium quotas are not displayed. Failed refreshes keep the last successful reading, so the display can be stale. Provider usage endpoints, including GitHub's internal, ChatGPT's backend, and Claude's undocumented OAuth APIs, can change independently of this plugin.
 
 > **Desktop compatibility:** `peak` and `quota` use OpenCode's experimental GUI plugin API, which can change between releases.
 
