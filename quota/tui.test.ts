@@ -1,4 +1,7 @@
 import assert from "node:assert/strict"
+import { mkdtemp, rm, writeFile } from "node:fs/promises"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
 import { setImmediate } from "node:timers/promises"
 import { fileURLToPath } from "node:url"
 import test from "node:test"
@@ -17,11 +20,52 @@ const { outputFiles } = buildSync({
 })
 const { default: plugin } = await import(`data:text/javascript;base64,${Buffer.from(outputFiles[0].text).toString("base64")}`)
 
+test("Claude Agent shows subscription usage but Anthropic API keys do not", { timeout: 5_000 }, async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), "opencode-claude-tui-"))
+  const previous = process.env.CLAUDE_CONFIG_DIR
+  process.env.CLAUDE_CONFIG_DIR = directory
+  t.after(async () => {
+    if (previous === undefined) delete process.env.CLAUDE_CONFIG_DIR
+    else process.env.CLAUDE_CONFIG_DIR = previous
+    await rm(directory, { recursive: true })
+  })
+  await writeFile(join(directory, ".credentials.json"), JSON.stringify({ claudeAiOauth: { accessToken: "test-token" } }))
+  const now = Date.now()
+  t.mock.method(Date, "now", () => now)
+  const fetched = Promise.withResolvers<void>()
+  t.mock.method(globalThis, "fetch", async () => {
+    fetched.resolve()
+    return Response.json({
+      five_hour: { utilization: 25, resets_at: new Date(now + 90 * 60_000).toISOString() },
+      seven_day: { utilization: 40, resets_at: new Date(now + 5 * 3_600_000).toISOString() },
+    })
+  })
+  let providerID = "claude-agent"
+  let render: () => unknown[] | null = () => null
+  const cleanup = plugin.setup({
+    client: {
+      experimental: { usage: { limits: async () => ({ data: {} }) } },
+      credential: { list: async () => [{ integrationID: "claude-agent", value: { type: "external" } }] },
+    },
+    ui: {
+      model: { current: () => ({ providerID }) },
+      slot: (slot: { render: typeof render }) => { render = slot.render },
+    },
+  })
+  t.after(cleanup)
+  await fetched.promise
+  await setImmediate()
+
+  assert.equal(render()?.[2], "25% · 1h 30m | 40% · 5h")
+  providerID = "anthropic"
+  assert.equal(render(), null)
+})
+
 for (const { name, reset, expected } of [
-  { name: "UTC reset", reset: { quota_reset_date_utc: new Date(2026, 1, 1).toISOString() }, expected: "15d 12h · 66% → 126%" },
-  { name: "local date-only reset", reset: { quota_reset_date: "2026-02-01" }, expected: "15d 12h · 66% → 126%" },
-  { name: "missing reset", reset: {}, expected: "credits · 66%" },
-  { name: "expired reset", reset: { quota_reset_date_utc: new Date(2026, 0, 1).toISOString() }, expected: "<1m · 66%" },
+  { name: "UTC reset", reset: { quota_reset_date_utc: new Date(2026, 1, 1).toISOString() }, expected: "66% → 126% · 15d 12h" },
+  { name: "local date-only reset", reset: { quota_reset_date: "2026-02-01" }, expected: "66% → 126% · 15d 12h" },
+  { name: "missing reset", reset: {}, expected: "66% · credits" },
+  { name: "expired reset", reset: { quota_reset_date_utc: new Date(2026, 0, 1).toISOString() }, expected: "66% · <1m" },
 ]) {
   test(`Copilot terminal usage with ${name}`, async (t) => {
     t.mock.method(Date, "now", () => new Date(2026, 0, 16, 12).getTime())
@@ -70,16 +114,16 @@ test("OpenCode Go usage reads the host's percent field", async (t) => {
   t.after(cleanup)
   await setImmediate()
 
-  assert.equal(render()?.[2], "2h 14m · 25%")
+  assert.equal(render()?.[2], "25% · 2h 14m")
 })
 
 for (const { name, reset, expected } of [
   {
     name: "known resets",
     reset: { session: new Date(2026, 0, 16, 13, 30).toISOString(), weekly: new Date(2026, 0, 16, 17).toISOString() },
-    expected: "1h 30m · 25% | 5h · 40%",
+    expected: "25% · 1h 30m | 40% · 5h",
   },
-  { name: "missing resets", reset: {}, expected: "session · 25% | weekly · 40%" },
+  { name: "missing resets", reset: {}, expected: "25% · session | 40% · weekly" },
 ]) {
   test(`Ollama terminal usage with ${name}`, async (t) => {
     const now = new Date(2026, 0, 16, 12).getTime()
