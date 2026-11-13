@@ -9,6 +9,14 @@ import { ChatGptUsageService, ClaudeUsageService, OllamaBalanceService, type Cha
 const toUsedPercent = (remainingPercent: number) => Math.round(100 - remainingPercent)
 // A date-only reset ("2026-11-01") means local midnight, not UTC.
 const midnight = (date: string) => new Date(`${date}T00:00:00`).getTime()
+// The pill already counts down, so the details name the moment: "14:00", "Tue 14:00", "Dec 1 14:00".
+const formatResetTime = (at: number, now: number) => {
+  const date = new Date(at)
+  const time = date.toLocaleTimeString("en-US", { hourCycle: "h23", hour: "2-digit", minute: "2-digit" })
+  if (date.toDateString() === new Date(now).toDateString()) return time
+  if (at - now < 6 * 86_400_000) return `${date.toLocaleDateString("en-US", { weekday: "short" })} ${time}`
+  return `${date.toLocaleDateString("en-US", { month: "short", day: "numeric" })} ${time}`
+}
 // Rows render in the pill's proportional sans font, where padded character counts do not line up.
 // Monospace makes the bar columns meet; nbsp survives HTML whitespace collapsing.
 const css = `[data-slot="session-plugin-pill-row"] { font-family: var(--v2-font-family-code) }`
@@ -180,7 +188,7 @@ export default Plugin.define({
       clearInterval(tick)
     })
 
-    const formatResetCountdown = (at: number) => (Number.isFinite(at) ? `resets in ${formatRemainingTime(at - now())}` : "")
+    const formatResetDetail = (at: number) => (Number.isFinite(at) ? `resets ${formatResetTime(at, now())}` : "")
     // The window's position already implies its name, so the time until reset says more.
     const windowLabel = (name: string, resetsAt: number) =>
       Number.isFinite(resetsAt) ? formatRemainingTime(resetsAt - now()) : name
@@ -190,21 +198,21 @@ export default Plugin.define({
 
       if (provider === "opencode-go") {
         const value = go()
-        if (value?.rolling) list.push({ id: "go.rolling", label: formatUsageRow(value.rolling.percent)("Session"), detail: formatResetCountdown(value.rolling.resetsAt) })
-        if (value?.weekly) list.push({ id: "go.weekly", label: formatUsageRow(value.weekly.percent)("Weekly"), detail: formatResetCountdown(value.weekly.resetsAt) })
-        if (value?.monthly) list.push({ id: "go.monthly", label: formatUsageRow(value.monthly.percent)("Monthly"), detail: formatResetCountdown(value.monthly.resetsAt) })
+        if (value?.rolling) list.push({ id: "go.rolling", label: formatUsageRow(value.rolling.percent)("Session"), detail: formatResetDetail(value.rolling.resetsAt) })
+        if (value?.weekly) list.push({ id: "go.weekly", label: formatUsageRow(value.weekly.percent)("Weekly"), detail: formatResetDetail(value.weekly.resetsAt) })
+        if (value?.monthly) list.push({ id: "go.monthly", label: formatUsageRow(value.monthly.percent)("Monthly"), detail: formatResetDetail(value.monthly.resetsAt) })
       } else if (provider === "ollama-cloud") {
         const account = ollama()
-        if (account?.session) list.push({ id: "ollama.session", label: formatUsageRow(toUsedPercent(account.session.remainingPercent))("Session"), detail: formatResetCountdown(new Date(account.session.resetsAt).getTime()) })
-        if (account?.weekly) list.push({ id: "ollama.weekly", label: formatUsageRow(toUsedPercent(account.weekly.remainingPercent))("Weekly"), detail: formatResetCountdown(new Date(account.weekly.resetsAt).getTime()) })
+        if (account?.session) list.push({ id: "ollama.session", label: formatUsageRow(toUsedPercent(account.session.remainingPercent))("Session"), detail: formatResetDetail(new Date(account.session.resetsAt).getTime()) })
+        if (account?.weekly) list.push({ id: "ollama.weekly", label: formatUsageRow(toUsedPercent(account.weekly.remainingPercent))("Weekly"), detail: formatResetDetail(new Date(account.weekly.resetsAt).getTime()) })
         if (account && account.purchasedUsd > 0) list.push({ id: "ollama.credits", label: `$${account.purchasedUsd.toFixed(2)} purchased credits` })
       } else if (provider === "github-copilot") {
         const premium = copilot()
-        if (premium) list.push({ id: "copilot.premium", label: formatUsageRow(premium.usedPercent)("Credits"), detail: formatResetCountdown(premium.resetsAt) })
+        if (premium) list.push({ id: "copilot.premium", label: formatUsageRow(premium.usedPercent)("Credits"), detail: formatResetDetail(premium.resetsAt) })
       } else if (provider === "openai" || provider === "claude-agent") {
         const value = provider === "claude-agent" ? claude() : chatGptReading()
-        if (value?.session) list.push({ id: `${provider}.session`, label: formatUsageRow(value.session.usedPercent)("Session"), detail: formatResetCountdown(value.session.resetsAt) })
-        if (value?.weekly) list.push({ id: `${provider}.weekly`, label: formatUsageRow(value.weekly.usedPercent)("Weekly"), detail: formatResetCountdown(value.weekly.resetsAt) })
+        if (value?.session) list.push({ id: `${provider}.session`, label: formatUsageRow(value.session.usedPercent)("Session"), detail: formatResetDetail(value.session.resetsAt) })
+        if (value?.weekly) list.push({ id: `${provider}.weekly`, label: formatUsageRow(value.weekly.usedPercent)("Weekly"), detail: formatResetDetail(value.weekly.resetsAt) })
       }
 
       return list.length > 0 ? list : undefined

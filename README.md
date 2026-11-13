@@ -113,7 +113,7 @@ Shows usage for the **currently selected provider** in the terminal prompt foote
 24% · 2h 14m | 38% → 76% · 3d 4h
 ```
 
-The arrow is a projection of usage at the reset, not an additional quota. Desktop details include usage bars and reset countdowns, plus purchased Ollama credits when available.
+The arrow is a projection of usage at the reset, not an additional quota. Desktop details include usage bars and local reset times, plus purchased Ollama credits when available.
 
 | Provider | Usage shown | Required OpenCode connection |
 | --- | --- | --- |
