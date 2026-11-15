@@ -56,4 +56,13 @@ test("Claude reuses its file-backed login without modifying credentials and back
   request.mock.mockImplementation(async () => new Response(null, { status: 401 }))
   await assert.rejects(loadUsage(), /401/)
   assert.equal(await readFile(path, "utf8"), credentials)
+
+  request.mock.mockImplementation(async () => new Response(null, { status: 429, headers: { "retry-after": "90" } }))
+  await assert.rejects(loadUsage(), /429/)
+  await assert.rejects(loadUsage(), /rate-limited/)
+  assert.equal(request.mock.callCount(), 4)
+
+  now += 90_000
+  request.mock.mockImplementation(async () => Response.json({ seven_day: { utilization: 40 } }))
+  assert.equal((await loadUsage()).weekly?.usedPercent, 40)
 })
