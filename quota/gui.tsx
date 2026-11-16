@@ -181,7 +181,7 @@ export default Plugin.define({
     }
 
     void load()
-    const refresh = setInterval(() => void load(), 5 * 60_000)
+    const refresh = setInterval(() => void load(), 60_000)
     const tick = setInterval(() => setNow(Date.now()), 60_000)
     onCleanup(() => {
       clearInterval(refresh)

@@ -127,7 +127,7 @@ Connect the provider through OpenCode first; the plugin reuses its stored creden
 
 Claude Agent uses Claude Code's own login: the default macOS `Claude Code-credentials` Keychain entry, or `~/.claude/.credentials.json` on other systems or when Keychain is unavailable. `CLAUDE_CONFIG_DIR` selects a file-backed login instead. The plugin never writes the login itself; when the stored access token has expired it runs `claude auth status`, which lets Claude Code refresh and store the token, then reads it again. A login whose refresh token is dead still needs an interactive `claude` login, and the plugin waits an hour before asking the CLI again.
 
-Usage refreshes on load and every **five minutes**. Claude backs off for the response's `Retry-After` when the server sends one, else 30 minutes. Countdown and projection displays refresh every minute. Weekly projections for Ollama, ChatGPT, and Claude Agent are desktop-only; Copilot projections appear in both interfaces.
+Usage refreshes on load and every **minute**. Claude backs off for the response's `Retry-After` when the server sends one, else 30 minutes. Countdown and projection displays refresh every minute. Weekly projections for Ollama, ChatGPT, and Claude Agent are desktop-only; Copilot projections appear in both interfaces.
 
 If nothing appears, check the selected provider, its connection, and whether the account exposes the relevant quota. Unlimited Copilot premium quotas are not displayed. Failed refreshes keep the last successful reading, so the display can be stale. Provider usage endpoints, including GitHub's internal, ChatGPT's backend, and Claude's undocumented OAuth APIs, can change independently of this plugin.
 
