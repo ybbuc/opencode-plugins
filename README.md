@@ -125,7 +125,7 @@ The arrow is a projection of usage at the reset, not an additional quota. Deskto
 
 Connect the provider through OpenCode first; the plugin reuses its stored credentials. There is no separate plugin credential setup, and `quota` works without enabling `peak`.
 
-Claude Agent uses Claude Code's own login: the default macOS `Claude Code-credentials` Keychain entry, or `~/.claude/.credentials.json` on other systems or when Keychain is unavailable. `CLAUDE_CONFIG_DIR` selects a file-backed login instead. Credentials are read-only; Claude Code remains responsible for refreshing them.
+Claude Agent uses Claude Code's own login: the default macOS `Claude Code-credentials` Keychain entry, or `~/.claude/.credentials.json` on other systems or when Keychain is unavailable. `CLAUDE_CONFIG_DIR` selects a file-backed login instead. The plugin never writes the login itself; when the stored access token has expired it runs `claude auth status`, which lets Claude Code refresh and store the token, then reads it again. A login whose refresh token is dead still needs an interactive `claude` login, and the plugin waits an hour before asking the CLI again.
 
 Usage refreshes on load and every **five minutes**. Claude backs off for 30 minutes after a rate-limit response. Countdown and projection displays refresh every minute. Weekly projections for Ollama, ChatGPT, and Claude Agent are desktop-only; Copilot projections appear in both interfaces.
 

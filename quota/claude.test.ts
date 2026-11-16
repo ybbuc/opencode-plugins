@@ -1,5 +1,5 @@
 import assert from "node:assert/strict"
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import test from "node:test"
@@ -20,6 +20,33 @@ test("Claude omits unavailable or invalid windows without inventing reset times"
     assert.deepEqual(parse(body), {})
   }
   assert.deepEqual(parse({ five_hour: { utilization: 0, resets_at: null } }), { session: { usedPercent: 0, resetsAt: NaN } })
+})
+
+test("Claude refreshes an expired login through Claude Code before reading usage", async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), "opencode-claude-"))
+  const previousDirectory = process.env.CLAUDE_CONFIG_DIR
+  const previousPath = process.env.PATH
+  process.env.CLAUDE_CONFIG_DIR = directory
+  t.after(async () => {
+    if (previousDirectory === undefined) delete process.env.CLAUDE_CONFIG_DIR
+    else process.env.CLAUDE_CONFIG_DIR = previousDirectory
+    process.env.PATH = previousPath
+    await rm(directory, { recursive: true })
+  })
+  const path = join(directory, ".credentials.json")
+  await writeFile(path, JSON.stringify({ claudeAiOauth: { accessToken: "stale", expiresAt: Date.now() - 60_000 } }))
+  const refreshed = JSON.stringify({ claudeAiOauth: { accessToken: "fresh", expiresAt: Date.now() + 8 * 3_600_000 } })
+  const bin = join(directory, "bin")
+  await mkdir(bin)
+  await writeFile(join(bin, "claude"), `#!/bin/sh\nprintf '%s' '${refreshed}' > '${path}'\n`, { mode: 0o755 })
+  process.env.PATH = `${bin}:${previousPath}`
+
+  t.mock.method(globalThis, "fetch", async (_url: string | URL | Request, init?: RequestInit) => {
+    assert.equal(new Headers(init?.headers).get("authorization"), "Bearer fresh")
+    return Response.json({ five_hour: { utilization: 30 } })
+  })
+
+  assert.equal((await loadUsage()).session?.usedPercent, 30)
 })
 
 test("Claude reuses its file-backed login without modifying credentials and backs off on throttling", async (t) => {

@@ -39,10 +39,29 @@ async function credentials(): Promise<string> {
 
 // ponytail: backoff is process-local; persist it if multiple clients trigger throttling.
 let retryAt = 0
+let refreshRetryAt = 0
+
+// Claude Code is the only writer of its login: it rotates the refresh token, so a
+// second refresher would invalidate the stored one. Asking the CLI refreshes in place.
+async function refreshLogin(): Promise<void> {
+  if (Date.now() < refreshRetryAt) throw new Error("Claude Code login refresh is backing off")
+  const path = [process.env.PATH, "/opt/homebrew/bin", "/usr/local/bin", join(homedir(), ".local", "bin")].filter(Boolean).join(":")
+  try {
+    await promisify(execFile)("claude", ["auth", "status"], { timeout: 30_000, env: { ...process.env, PATH: path } })
+  } catch (error) {
+    // A dead refresh token needs an interactive login, so stop spawning the CLI every refresh.
+    refreshRetryAt = Date.now() + 60 * 60_000
+    throw error
+  }
+}
 
 export async function loadUsage(): Promise<ClaudeUsage> {
   if (Date.now() < retryAt) throw new Error("Claude usage is rate-limited")
-  const oauth = JSON.parse(await credentials())?.claudeAiOauth
+  let oauth = JSON.parse(await credentials())?.claudeAiOauth
+  if (typeof oauth?.expiresAt === "number" && oauth.expiresAt < Date.now()) {
+    await refreshLogin()
+    oauth = JSON.parse(await credentials())?.claudeAiOauth
+  }
   if (typeof oauth?.accessToken !== "string" || !oauth.accessToken) throw new Error("Claude Code login is unavailable")
   const response = await fetch("https://api.anthropic.com/api/oauth/usage", {
     headers: {
