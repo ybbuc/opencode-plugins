@@ -71,7 +71,11 @@ export async function loadUsage(): Promise<ClaudeUsage> {
     },
     signal: AbortSignal.timeout(10_000),
   })
-  if (response.status === 429) retryAt = Date.now() + 30 * 60_000
+  if (response.status === 429) {
+    // Retry-After is in seconds.
+    const retryAfter = Number(response.headers.get("retry-after")) * 1_000
+    retryAt = Date.now() + (retryAfter > 0 ? retryAfter : 30 * 60_000)
+  }
   if (!response.ok) throw new Error(`Claude usage answered ${response.status}`)
   return parse(await response.json())
 }
