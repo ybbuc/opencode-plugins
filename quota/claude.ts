@@ -9,6 +9,10 @@ export type ClaudeUsage = {
   weekly?: { usedPercent: number; resetsAt: number }
 }
 
+// The GUI receives this error across IPC, so match the message rather than the class.
+export const isLoginError = (error: unknown) =>
+  String(error instanceof Error ? error.message : error).includes("Claude Code login is")
+
 export function parse(body: unknown): ClaudeUsage {
   const out: ClaudeUsage = {}
   if (!body || typeof body !== "object") return out
@@ -63,6 +67,9 @@ export async function loadUsage(): Promise<ClaudeUsage> {
     oauth = JSON.parse(await credentials())?.claudeAiOauth
   }
   if (typeof oauth?.accessToken !== "string" || !oauth.accessToken) throw new Error("Claude Code login is unavailable")
+  // A revoked login survives the CLI refresh untouched, and Claude answers an expired token with a
+  // long throttling window, so sending one buys nothing.
+  if (typeof oauth.expiresAt === "number" && oauth.expiresAt < Date.now()) throw new Error("Claude Code login is expired")
   const response = await fetch("https://api.anthropic.com/api/oauth/usage", {
     headers: {
       authorization: `Bearer ${oauth.accessToken}`,

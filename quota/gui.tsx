@@ -2,7 +2,7 @@ import { ComposerPill, Plugin, Style } from "@opencode/plugin/gui"
 import { createSignal, onCleanup } from "solid-js"
 import { formatRemainingTime } from "../peak/peak.ts"
 import { CHATGPT_USAGE_URL, parse as parseChatGpt } from "./chatgpt.ts"
-import { loadUsage as loadClaudeUsage, type ClaudeUsage } from "./claude.ts"
+import { isLoginError, loadUsage as loadClaudeUsage, type ClaudeUsage } from "./claude.ts"
 import { projectDailyUsage, projectMonthlyUsage } from "./pace.ts"
 import { ChatGptUsageService, ClaudeUsageService, OllamaBalanceService, type ChatGptUsage, type OllamaBalance } from "./usage.ts"
 
@@ -101,6 +101,7 @@ export default Plugin.define({
     const [copilot, setCopilot] = createSignal<CopilotUsage | undefined>()
     const [chatGptReading, setChatGptReading] = createSignal<ChatGptUsage | undefined>()
     const [claude, setClaude] = createSignal<ClaudeUsage>()
+    const [claudeLoggedOut, setClaudeLoggedOut] = createSignal(false)
     // Read by the rows: a countdown is only right if it ticks.
     const [now, setNow] = createSignal(Date.now())
     const balance = ctx.main(OllamaBalanceService)
@@ -125,8 +126,13 @@ export default Plugin.define({
       if (entries.some((entry) => entry.integrationID === "claude-agent" && entry.value?.type === "external")) {
         try {
           setClaude(await claudeUsage.usage())
-        } catch {
-          // Keep the last reading.
+          setClaudeLoggedOut(false)
+        } catch (error) {
+          if (isLoginError(error)) {
+            setClaude(undefined)
+            setClaudeLoggedOut(true)
+          }
+          // Otherwise keep the last reading.
         }
       }
 
@@ -210,9 +216,13 @@ export default Plugin.define({
         const premium = copilot()
         if (premium) list.push({ id: "copilot.premium", label: formatUsageRow(premium.usedPercent)("Credits"), detail: formatResetDetail(premium.resetsAt) })
       } else if (provider === "openai" || provider === "claude-agent") {
-        const value = provider === "claude-agent" ? claude() : chatGptReading()
-        if (value?.session) list.push({ id: `${provider}.session`, label: formatUsageRow(value.session.usedPercent)("Session"), detail: formatResetDetail(value.session.resetsAt) })
-        if (value?.weekly) list.push({ id: `${provider}.weekly`, label: formatUsageRow(value.weekly.usedPercent)("Weekly"), detail: formatResetDetail(value.weekly.resetsAt) })
+        if (provider === "claude-agent" && claudeLoggedOut()) {
+          list.push({ id: "claude.logged-out", label: "Logged out", detail: "run `claude auth login`" })
+        } else {
+          const value = provider === "claude-agent" ? claude() : chatGptReading()
+          if (value?.session) list.push({ id: `${provider}.session`, label: formatUsageRow(value.session.usedPercent)("Session"), detail: formatResetDetail(value.session.resetsAt) })
+          if (value?.weekly) list.push({ id: `${provider}.weekly`, label: formatUsageRow(value.weekly.usedPercent)("Weekly"), detail: formatResetDetail(value.weekly.resetsAt) })
+        }
       }
 
       return list.length > 0 ? list : undefined
@@ -245,11 +255,15 @@ export default Plugin.define({
             parts.push(`${premium.usedPercent}%${projected === undefined ? "" : ` → ${Math.round(projected)}%`} · ${windowLabel("credits", premium.resetsAt)}`)
           }
         } else if (provider === "openai" || provider === "claude-agent") {
-          const value = provider === "claude-agent" ? claude() : chatGptReading()
-          if (value?.session) parts.push(`${value.session.usedPercent}% · ${windowLabel("session", value.session.resetsAt)}`)
-          if (value?.weekly) {
-            const projected = projectDailyUsage(value.weekly.usedPercent, value.weekly.resetsAt, 7 * 86_400_000, now())
-            parts.push(`${value.weekly.usedPercent}%${projected === undefined ? "" : ` → ${Math.round(projected)}%`} · ${windowLabel("weekly", value.weekly.resetsAt)}`)
+          if (provider === "claude-agent" && claudeLoggedOut()) {
+            parts.push("Logged out")
+          } else {
+            const value = provider === "claude-agent" ? claude() : chatGptReading()
+            if (value?.session) parts.push(`${value.session.usedPercent}% · ${windowLabel("session", value.session.resetsAt)}`)
+            if (value?.weekly) {
+              const projected = projectDailyUsage(value.weekly.usedPercent, value.weekly.resetsAt, 7 * 86_400_000, now())
+              parts.push(`${value.weekly.usedPercent}%${projected === undefined ? "" : ` → ${Math.round(projected)}%`} · ${windowLabel("weekly", value.weekly.resetsAt)}`)
+            }
           }
         }
 

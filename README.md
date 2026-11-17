@@ -129,7 +129,7 @@ Claude Agent uses Claude Code's own login: the default macOS `Claude Code-creden
 
 Usage refreshes on load and every **minute**. Claude backs off for the response's `Retry-After` when the server sends one, else 30 minutes. Countdown and projection displays refresh every minute. Weekly projections for Ollama, ChatGPT, and Claude Agent are desktop-only; Copilot projections appear in both interfaces.
 
-If nothing appears, check the selected provider, its connection, and whether the account exposes the relevant quota. Unlimited Copilot premium quotas are not displayed. Failed refreshes keep the last successful reading, so the display can be stale. Provider usage endpoints, including GitHub's internal, ChatGPT's backend, and Claude's undocumented OAuth APIs, can change independently of this plugin.
+If nothing appears, check the selected provider, its connection, and whether the account exposes the relevant quota. Claude Agent is the exception: an expired or revoked Claude Code login shows `Logged out` rather than a blank footer. Unlimited Copilot premium quotas are not displayed. Failed refreshes keep the last successful reading, so the display can be stale. Provider usage endpoints, including GitHub's internal, ChatGPT's backend, and Claude's undocumented OAuth APIs, can change independently of this plugin.
 
 > **Desktop compatibility:** `peak` and `quota` use OpenCode's experimental GUI plugin API, which can change between releases.
 

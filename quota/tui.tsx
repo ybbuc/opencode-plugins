@@ -3,7 +3,7 @@ import { Plugin } from "@opencode/plugin/tui"
 import { createSignal } from "solid-js"
 import { formatRemainingTime } from "../peak/peak.ts"
 import { CHATGPT_USAGE_URL, parse as parseChatGpt, type ChatGptUsage } from "./chatgpt.ts"
-import { loadUsage as loadClaudeUsage, type ClaudeUsage } from "./claude.ts"
+import { isLoginError, loadUsage as loadClaudeUsage, type ClaudeUsage } from "./claude.ts"
 import { projectMonthlyUsage } from "./pace.ts"
 
 type GoWindow = { percent: number; resetsAt: number; limited: boolean }
@@ -28,6 +28,7 @@ export default Plugin.define({
     const [copilot, setCopilot] = createSignal<CopilotUsage>()
     const [chatGptReading, setChatGptReading] = createSignal<ChatGptUsage>()
     const [claude, setClaude] = createSignal<ClaudeUsage>()
+    const [claudeLoggedOut, setClaudeLoggedOut] = createSignal(false)
     const [now, setNow] = createSignal(Date.now())
 
     // The terminal can reach these hosts directly, so it skips the GUI's IPC hop.
@@ -49,8 +50,13 @@ export default Plugin.define({
       if (entries.some((entry) => entry.integrationID === "claude-agent" && entry.value?.type === "external")) {
         try {
           setClaude(await loadClaudeUsage())
-        } catch {
-          // Keep the last reading.
+          setClaudeLoggedOut(false)
+        } catch (error) {
+          if (isLoginError(error)) {
+            setClaude(undefined)
+            setClaudeLoggedOut(true)
+          }
+          // Otherwise keep the last reading.
         }
       }
 
@@ -158,9 +164,13 @@ export default Plugin.define({
             parts.push(`${copilotUsage.usedPercent}%${projected === undefined ? "" : ` → ${Math.round(projected)}%`} · ${windowLabel("credits", copilotUsage.resetsAt)}`)
           }
         } else if (provider === "openai" || provider === "claude-agent") {
-          const value = provider === "claude-agent" ? claude() : chatGptReading()
-          if (value?.session) parts.push(`${value.session.usedPercent}% · ${windowLabel("session", value.session.resetsAt)}`)
-          if (value?.weekly) parts.push(`${value.weekly.usedPercent}% · ${windowLabel("weekly", value.weekly.resetsAt)}`)
+          if (provider === "claude-agent" && claudeLoggedOut()) {
+            parts.push("Logged out")
+          } else {
+            const value = provider === "claude-agent" ? claude() : chatGptReading()
+            if (value?.session) parts.push(`${value.session.usedPercent}% · ${windowLabel("session", value.session.resetsAt)}`)
+            if (value?.weekly) parts.push(`${value.weekly.usedPercent}% · ${windowLabel("weekly", value.weekly.resetsAt)}`)
+          }
         }
 
         return parts.length > 0 ? <text>{parts.join(" | ")}</text> : null
