@@ -22,6 +22,22 @@ test("Claude omits unavailable or invalid windows without inventing reset times"
   assert.deepEqual(parse({ five_hour: { utilization: 0, resets_at: null } }), { session: { usedPercent: 0, resetsAt: NaN } })
 })
 
+test("Claude reports a missing credential store as a login problem", async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), "opencode-claude-"))
+  const previousDirectory = process.env.CLAUDE_CONFIG_DIR
+  process.env.CLAUDE_CONFIG_DIR = directory
+  t.after(async () => {
+    if (previousDirectory === undefined) delete process.env.CLAUDE_CONFIG_DIR
+    else process.env.CLAUDE_CONFIG_DIR = previousDirectory
+    await rm(directory, { recursive: true })
+  })
+
+  const request = t.mock.method(globalThis, "fetch", async () => Response.json({}))
+
+  await assert.rejects(loadUsage(), /login is unavailable/)
+  assert.equal(request.mock.callCount(), 0)
+})
+
 test("Claude does not send a login that Claude Code left expired", async (t) => {
   const directory = await mkdtemp(join(tmpdir(), "opencode-claude-"))
   const previousDirectory = process.env.CLAUDE_CONFIG_DIR

@@ -38,7 +38,12 @@ async function credentials(): Promise<string> {
       // Claude Code can fall back to file storage when Keychain is unavailable.
     }
   }
-  return readFile(join(directory || join(homedir(), ".claude"), ".credentials.json"), "utf8")
+  try {
+    return await readFile(join(directory || join(homedir(), ".claude"), ".credentials.json"), "utf8")
+  } catch {
+    // A missing credential store is the same dead end as a missing token.
+    throw new Error("Claude Code login is unavailable")
+  }
 }
 
 // ponytail: backoff is process-local; persist it if multiple clients trigger throttling.

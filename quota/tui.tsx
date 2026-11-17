@@ -47,6 +47,7 @@ export default Plugin.define({
         return
       }
 
+      // A dead login can drop its credential entry entirely, which is also worth reporting.
       if (entries.some((entry) => entry.integrationID === "claude-agent" && entry.value?.type === "external")) {
         try {
           setClaude(await loadClaudeUsage())
@@ -58,6 +59,9 @@ export default Plugin.define({
           }
           // Otherwise keep the last reading.
         }
+      } else {
+        setClaude(undefined)
+        setClaudeLoggedOut(true)
       }
 
       const ollamaKey = entries.find((entry) => entry.integrationID === "ollama-cloud" && entry.value?.type === "key")?.value.key
