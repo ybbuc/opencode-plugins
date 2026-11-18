@@ -69,6 +69,19 @@ export function projectMonthlyUsage(usedPercent: number, resetsAt: number, now: 
   return (usedPercent * totalWorkdays) / elapsedWorkdays
 }
 
+/** Short duration label such as `2h 14m`, used for reset countdowns. */
+export function formatRemainingTime(ms: number): string {
+  const minutes = Math.max(0, Math.floor(ms / 60_000))
+  if (minutes < 1) return "<1m"
+  if (minutes < 60) return `${minutes}m`
+
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return minutes % 60 === 0 ? `${hours}h` : `${hours}h ${minutes % 60}m`
+
+  const days = Math.floor(hours / 24)
+  return hours % 24 === 0 ? `${days}d` : `${days}d ${hours % 24}h`
+}
+
 const DAY_MS = 86_400_000
 
 /** Extrapolates using whole elapsed days, treating the first partial day as a full day. */

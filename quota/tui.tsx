@@ -1,10 +1,9 @@
 /** @jsxImportSource @opentui/solid */
 import { Plugin } from "@opencode/plugin/tui"
 import { createSignal } from "solid-js"
-import { formatRemainingTime } from "../peak/peak.ts"
 import { CHATGPT_USAGE_URL, parse as parseChatGpt, type ChatGptUsage } from "./chatgpt.ts"
 import { isLoginError, loadUsage as loadClaudeUsage, type ClaudeUsage } from "./claude.ts"
-import { projectMonthlyUsage } from "./pace.ts"
+import { formatRemainingTime, projectMonthlyUsage } from "./pace.ts"
 
 type GoWindow = { percent: number; resetsAt: number; limited: boolean }
 type GoUsage = { rolling?: GoWindow; weekly?: GoWindow; monthly?: GoWindow }

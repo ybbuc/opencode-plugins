@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import test from "node:test"
-import { projectDailyUsage, projectMonthlyUsage } from "./pace.ts"
+import { formatRemainingTime, projectDailyUsage, projectMonthlyUsage } from "./pace.ts"
 
 const reset = new Date(2026, 1, 1).getTime()
 const at = (month: number, day: number) => new Date(2026, month, day, 12).getTime()
@@ -48,6 +48,15 @@ test("the first day's usage is treated as a full day's usage", () => {
   assert.equal(projectDailyUsage(4, end, 604_800_000, start + 12 * 3_600_000), 28)
   assert.equal(projectDailyUsage(1, end, 604_800_000, start - 1), undefined)
   assert.equal(projectDailyUsage(1, end, 604_800_000, end), undefined)
+})
+
+test("reset countdowns render compactly", () => {
+  assert.equal(formatRemainingTime(-1), "<1m")
+  assert.equal(formatRemainingTime(59_999), "<1m")
+  assert.equal(formatRemainingTime(90 * 60_000), "1h 30m")
+  assert.equal(formatRemainingTime(5 * 3_600_000), "5h")
+  assert.equal(formatRemainingTime(36 * 3_600_000), "1d 12h")
+  assert.equal(formatRemainingTime(48 * 3_600_000), "2d")
 })
 
 test("linear projections are hidden for invalid or inactive windows", () => {

@@ -1,9 +1,8 @@
 import { ComposerPill, Plugin, Style } from "@opencode/plugin/gui"
 import { createSignal, onCleanup } from "solid-js"
-import { formatRemainingTime } from "../peak/peak.ts"
 import { CHATGPT_USAGE_URL, parse as parseChatGpt } from "./chatgpt.ts"
 import { isLoginError, loadUsage as loadClaudeUsage, type ClaudeUsage } from "./claude.ts"
-import { projectDailyUsage, projectMonthlyUsage } from "./pace.ts"
+import { formatRemainingTime, projectDailyUsage, projectMonthlyUsage } from "./pace.ts"
 import { ChatGptUsageService, ClaudeUsageService, OllamaBalanceService, type ChatGptUsage, type OllamaBalance } from "./usage.ts"
 
 const toUsedPercent = (remainingPercent: number) => Math.round(100 - remainingPercent)

@@ -63,7 +63,7 @@ Each plugin was independently loaded from a clean local checkout with OpenCode 2
    opencode plugin list
    ```
 
-Cloning downloads the collection, but only configured plugins are enabled. Keep the checkout intact: `quota`'s desktop source imports a formatting helper from `peak` when rebuilding, although the bundled plugin does **not** require enabling `peak`.
+Cloning downloads the collection, but only configured plugins are enabled. Each plugin directory is self-contained, so the others need to be present only if you configure them.
 
 For project-only use, put the local path in that project's `opencode.jsonc` instead. For desktop use across windows, use the global configuration shown above.
 

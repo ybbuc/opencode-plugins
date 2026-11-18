@@ -1,5 +1,5 @@
 import assert from "node:assert/strict"
-import { mkdtemp, rm, writeFile } from "node:fs/promises"
+import { mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { setImmediate } from "node:timers/promises"
@@ -19,6 +19,18 @@ const { outputFiles } = buildSync({
   logOverride: { "unsupported-jsx-comment": "silent" },
 })
 const { default: plugin } = await import(`data:text/javascript;base64,${Buffer.from(outputFiles[0].text).toString("base64")}`)
+
+test("the package resolves every import from its own directory", async () => {
+  // `::path:` installs ship only this package, so a sibling import makes the TUI fail to load.
+  const directory = fileURLToPath(new URL(".", import.meta.url))
+  for (const file of await readdir(directory)) {
+    if (!file.endsWith(".ts") && !file.endsWith(".tsx")) continue
+    const source = await readFile(join(directory, file), "utf8")
+    for (const [, specifier] of source.matchAll(/from\s+["']([^"']+)["']/g)) {
+      assert.ok(!specifier.startsWith(".."), `${file} imports ${specifier}`)
+    }
+  }
+})
 
 test("Claude Agent shows subscription usage but Anthropic API keys do not", { timeout: 5_000 }, async (t) => {
   const directory = await mkdtemp(join(tmpdir(), "opencode-claude-tui-"))
