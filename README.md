@@ -1,11 +1,12 @@
 # OpenCode plugins
 
-Plugins for [OpenCode V2](https://opencode.ai/v2/docs/) that help you write Git commits, track model pricing and account usage, and find links without scrolling through the conversation. Pick the plugins you want; none requires enabling the others.
+Plugins for [OpenCode V2](https://opencode.ai/v2/docs/) that help you write Git commits, track model pricing and account usage, find links without scrolling, and resume a session with one key. Pick the plugins you want; none requires enabling the others.
 
 - **[commit](#commit)** — a commit-writing skill with Git context and message-validation tools.
 - **[peak](#peak)** — peak/off-peak pricing status and a countdown in the terminal and desktop app.
 - **[quota](#quota)** — account usage, reset times, and usage projections for supported providers.
 - **[quick-links](#quick-links)** — search and open links from the active conversation by their titles.
+- **[keep-going](#keep-going)** — press Enter on an empty prompt to continue the active session.
 
 ## Installation
 
@@ -39,7 +40,13 @@ opencode plugin add 'github:ybbuc/opencode-plugins#main::path:quota'
 opencode plugin add 'github:ybbuc/opencode-plugins#main::path:quick-links'
 ```
 
-`::path:` selects just that plugin's package. The installer adds it to your **global** OpenCode configuration, so it applies across projects. You do not need a separate terminal or desktop installation for `peak`, `quota`, or `quick-links`.
+**keep-going**
+
+```sh
+opencode plugin add 'github:ybbuc/opencode-plugins#main::path:keep-going'
+```
+
+`::path:` selects just that plugin's package. The installer adds it to your **global** OpenCode configuration, so it applies across projects. A single installation enables each plugin's terminal and desktop features where available.
 
 See OpenCode's [plugin installation documentation](https://opencode.ai/v2/docs/plugins#manage) for Git URLs, version pinning, and package management.
 
@@ -164,6 +171,23 @@ No shortcut is assigned by default. To add one, replace the Quick Links entry in
 For a local installation, use your Quick Links directory as `package` instead. Set `keybind` to `false` or `"none"` to disable the shortcut; `/links` still works.
 
 Adapted from [vimtor's opencode-quick-links](https://github.com/vimtor/opencode-plugins/tree/main/packages/opencode-quick-links) under the [MIT license](quick-links/LICENSE).
+
+## keep-going
+
+In the terminal or desktop app, press Enter with the session prompt focused and empty to continue with the same agent and model. The plugin leaves Enter alone when the prompt contains text or is in shell mode. In the desktop app, add text before submitting an attachment-only prompt; Keep Going checks only for text.
+
+By default, the plugin sends `Continue.` without showing it in the conversation. To send a visible `Proceed.` instead, replace the Keep Going entry in your `plugins` array with:
+
+```jsonc
+{
+  "package": "github:ybbuc/opencode-plugins#main::path:keep-going",
+  "options": { "hidden": false, "message": "Proceed." }
+}
+```
+
+For a local installation, use your Keep Going directory as `package` instead.
+
+Adapted from [vimtor's opencode-keep-going](https://github.com/vimtor/opencode-plugins/tree/main/packages/opencode-keep-going) under the [MIT license](keep-going/LICENSE).
 
 ## Updating and removing plugins
 
