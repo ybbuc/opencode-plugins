@@ -1,0 +1,27 @@
+{
+  "name": "quick-links",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./tui": "./tui.ts",
+    "./gui-experimental": "./gui-experimental.cjs"
+  },
+  "peerDependencies": {
+    "solid-js": ">=1.9.0"
+  },
+  "scripts": {
+    "build:dist": "vite build",
+    "watch": "vite build --watch",
+    "test": "node --test *.test.ts",
+    "typecheck": "tsc"
+  },
+  "dependencies": {
+    "open": "^10.1.2"
+  },
+  "devDependencies": {
+    "@opencode/plugin": "2.2.0",
+    "typescript": "^5.9.3",
+    "vite": "^8.3.5",
+    "vite-plugin-solid": "^2.11.14"
+  }
+}
