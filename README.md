@@ -1,10 +1,11 @@
 # OpenCode plugins
 
-Plugins for [OpenCode V2](https://opencode.ai/v2/docs/) that help you write Git commits and keep an eye on model pricing and account usage without leaving your session. Pick the plugins you want; none requires enabling the others.
+Plugins for [OpenCode V2](https://opencode.ai/v2/docs/) that help you write Git commits, track model pricing and account usage, and find links without scrolling through the conversation. Pick the plugins you want; none requires enabling the others.
 
 - **[commit](#commit)** — a commit-writing skill with Git context and message-validation tools.
 - **[peak](#peak)** — peak/off-peak pricing status and a countdown in the terminal and desktop app.
 - **[quota](#quota)** — account usage, reset times, and usage projections for supported providers.
+- **[quick-links](#quick-links)** — search and open links from the active conversation by their titles.
 
 ## Installation
 
@@ -32,18 +33,30 @@ opencode plugin add 'github:ybbuc/opencode-plugins#main::path:peak'
 opencode plugin add 'github:ybbuc/opencode-plugins#main::path:quota'
 ```
 
-`::path:` selects just that plugin's package. The installer adds it to your **global** OpenCode configuration, so it applies across projects. You do not need a separate terminal or desktop installation for `peak` or `quota`.
+**quick-links**
+
+```sh
+opencode plugin add 'github:ybbuc/opencode-plugins#main::path:quick-links'
+```
+
+`::path:` selects just that plugin's package. The installer adds it to your **global** OpenCode configuration, so it applies across projects. You do not need a separate terminal or desktop installation for `peak`, `quota`, or `quick-links`.
 
 See OpenCode's [plugin installation documentation](https://opencode.ai/v2/docs/plugins#manage) for Git URLs, version pinning, and package management.
 
 ### Local installation
 
-Each plugin was independently loaded from a clean local checkout with OpenCode 2.2.5. The desktop bundles are committed to the repository; using them does not require a build.
+The desktop bundles are committed to the repository; using them does not require a build.
 
 1. Clone the repository outside OpenCode's automatically discovered plugin directories:
 
    ```sh
    git clone https://github.com/ybbuc/opencode-plugins.git "$HOME/opencode-plugins"
+   ```
+
+   For Quick Links in the terminal, install its runtime dependencies in the checkout first (requires npm):
+
+   ```sh
+   npm --prefix "$HOME/opencode-plugins/quick-links" ci --omit=dev
    ```
 
 2. Add **only the plugin you want** to the `plugins` array in `~/.config/opencode/opencode.jsonc` (or `$XDG_CONFIG_HOME/opencode/opencode.jsonc` if set). For example, to enable only `quota`:
@@ -55,7 +68,7 @@ Each plugin was independently loaded from a clean local checkout with OpenCode 2
    }
    ```
 
-   Replace `quota` with `commit` or `peak` to choose another plugin. To enable several, add one path per plugin. **Merge this entry into your existing configuration; do not replace unrelated settings.**
+   Replace `quota` with the directory name of the plugin you want. To enable several, add one path per plugin. **Merge this entry into your existing configuration; do not replace unrelated settings.**
 
 3. OpenCode reloads configuration changes automatically. Use `/reload` if you need to force a reload, then check the plugin list:
 
@@ -133,6 +146,25 @@ If nothing appears, check the selected provider, its connection, and whether the
 
 > **Desktop compatibility:** `peak` and `quota` use OpenCode's experimental GUI plugin API, which can change between releases.
 
+## quick-links
+
+In the terminal or desktop app, run `/links` or choose **Open session links** from the command palette. Type to filter the list, then press Enter to open the selected link in your default browser.
+
+Quick Links lists HTTP and HTTPS links from user and assistant messages, not tool output. Each destination appears once, newest first. Markdown links show their labels alongside the URL, with inline-code markers removed from labels like `rmcp`. Bare links show only the URL.
+
+No shortcut is assigned by default. To add one, replace the Quick Links entry in your `plugins` array with an entry like this:
+
+```jsonc
+{
+  "package": "github:ybbuc/opencode-plugins#main::path:quick-links",
+  "options": { "keybind": "ctrl+shift+o" }
+}
+```
+
+For a local installation, use your Quick Links directory as `package` instead. Set `keybind` to `false` or `"none"` to disable the shortcut; `/links` still works.
+
+Adapted from [vimtor's opencode-quick-links](https://github.com/vimtor/opencode-plugins/tree/main/packages/opencode-quick-links) under the [MIT license](quick-links/LICENSE).
+
 ## Updating and removing plugins
 
 ### Git-package installations
@@ -150,7 +182,7 @@ opencode plugin update 'github:ybbuc/opencode-plugins#main::path:quota'
 opencode plugin remove 'github:ybbuc/opencode-plugins#main::path:quota'
 ```
 
-Replace `quota` with `commit` or `peak` as appropriate. These commands don't update local checkouts.
+Replace `quota` with the directory name of the plugin you want. These commands don't update local checkouts.
 
 ### Local installations
 
