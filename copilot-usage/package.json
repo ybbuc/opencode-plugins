@@ -1,0 +1,11 @@
+{
+  "name": "copilot-usage",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./index.ts"
+  },
+  "scripts": {
+    "test": "node --test *.test.ts"
+  }
+}
