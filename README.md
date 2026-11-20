@@ -3,6 +3,7 @@
 Plugins for [OpenCode V2](https://opencode.ai/v2/docs/) that help you write Git commits and keep an eye on model pricing and account usage without leaving your session. Pick the plugins you want; none requires enabling the others.
 
 - **[commit](#commit)** — a commit-writing skill with Git context and message-validation tools.
+- **[copilot-usage](#copilot-usage)** — an opt-in local log of finished GitHub Copilot turns.
 - **[peak](#peak)** — peak/off-peak pricing status and a countdown in the terminal and desktop app.
 - **[quota](#quota)** — account usage, reset times, and usage projections for supported providers.
 
@@ -85,6 +86,33 @@ Use the commit skill to commit my changes.
 The skill considers all uncommitted changes by default, proposes separate commits for unrelated changes, and asks you to approve the exact message **before staging or committing**. You can name a subset of files or explicitly request an amend. It does not push.
 
 Messages use conventional-commit-style subjects, a 72-character subject limit, and body wrapping at 70 characters. See the [skill](commit/SKILL.md) and [message format](commit/references/message-format.md) for the full workflow.
+
+## copilot-usage
+
+For eligible top-level turns that used only GitHub Copilot, the plugin sends a transcript with common credentials masked to `github-copilot/claude-haiku-5.5`. Haiku skips trivial work or returns one entry for the local `~/.local/share/copilot-usage-log.md`. The log stays local, but summarization is a separate Copilot call. Enable it explicitly:
+
+```jsonc
+{
+  "plugins": [
+    {
+      "package": "{env:HOME}/opencode-plugins/copilot-usage",
+      "options": { "enabled": true }
+    }
+  ]
+}
+```
+
+Merge this entry into your existing `plugins` array, as in [Local installation](#local-installation). Without `"enabled": true`, the plugin does not subscribe to events.
+
+The plugin never creates the log. Create it yourself, with `Status: active` as its first `Status:` line and `## Entries` as its last heading. Otherwise turns are skipped:
+
+```md
+# Copilot usage log
+
+Status: active
+
+## Entries
+```
 
 ## peak
 
