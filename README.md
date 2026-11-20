@@ -23,6 +23,23 @@ OpenCode's native installer supports selecting a repository subdirectory. Run th
 opencode plugin add 'github:ybbuc/opencode-plugins#main::path:commit'
 ```
 
+**copilot-usage**
+
+```sh
+opencode plugin add 'github:ybbuc/opencode-plugins#main::path:copilot-usage'
+```
+
+Then replace the new string entry in your `plugins` array with an object that opts in:
+
+```json
+{
+  "package": "github:ybbuc/opencode-plugins#main::path:copilot-usage",
+  "options": { "enabled": true }
+}
+```
+
+Finally, [create the local log](#copilot-usage). Installing the plugin alone does not start logging.
+
 **peak**
 
 ```sh
@@ -76,7 +93,7 @@ The desktop bundles are committed to the repository; using them does not require
    }
    ```
 
-   Replace `quota` with the directory name of the plugin you want. To enable several, add one path per plugin. **Merge this entry into your existing configuration; do not replace unrelated settings.**
+   Replace `quota` with the directory name of the plugin you want. To enable several, add one entry per plugin. For [copilot-usage](#copilot-usage), use the object form shown below instead of a bare path. **Merge this entry into your existing configuration; do not replace unrelated settings.**
 
 3. OpenCode reloads configuration changes automatically. Use `/reload` if you need to force a reload, then check the plugin list:
 
