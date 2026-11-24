@@ -1,8 +1,9 @@
 # OpenCode plugins
 
-Plugins for [OpenCode V2](https://opencode.ai/v2/docs/) that help you write Git commits, track model pricing and account usage, find links without scrolling, and resume a session with one key. Pick the plugins you want; none requires enabling the others.
+Plugins for [OpenCode V2](https://opencode.ai/v2/docs/) that help you write Git commits, keep agents from skipping Git hooks, track model pricing and account usage, find links without scrolling, and resume a session with one key. Pick the plugins you want; none requires enabling the others.
 
 - **[commit](#commit)** — a commit-writing skill with Git context and message-validation tools.
+- **[git-hook-guard](#git-hook-guard)** — denies agent shell commands that skip or disable Git hooks.
 - **[copilot-usage](#copilot-usage)** — an opt-in local log of finished GitHub Copilot turns.
 - **[peak](#peak)** — peak/off-peak pricing status and a countdown in the terminal and desktop app.
 - **[quota](#quota)** — account usage, reset times, and usage projections for supported providers.
@@ -21,6 +22,12 @@ OpenCode's native installer supports selecting a repository subdirectory. Run th
 
 ```sh
 opencode plugin add 'github:ybbuc/opencode-plugins#main::path:commit'
+```
+
+**git-hook-guard**
+
+```sh
+opencode plugin add 'github:ybbuc/opencode-plugins#main::path:git-hook-guard'
 ```
 
 **copilot-usage**
@@ -123,6 +130,32 @@ Use the commit skill to commit my changes.
 The skill considers all uncommitted changes by default, proposes separate commits for unrelated changes, and asks you to approve the exact message **before staging or committing**. You can name a subset of files or explicitly request an amend. It does not push.
 
 Messages use conventional-commit-style subjects, a 72-character subject limit, and body wrapping at 70 characters. See the [skill](commit/SKILL.md) and [message format](commit/references/message-format.md) for the full workflow.
+
+## git-hook-guard
+
+When an agent runs a shell command that skips or disables Git hooks, OpenCode denies it with a reason instead of running it or asking you, so a quick **Allow once** can't let it through. The agent sees a message like:
+
+```text
+Blocked: this command skips Git hooks (found `git commit -n` (`-n` is `--no-verify`)). Drop the bypass, run the command again, read the hook output, and fix what fails. Ask the user before changing hook configuration such as lefthook.yml, core.hooksPath, or .git/hooks.
+```
+
+It denies:
+
+- `--no-verify` on Git subcommands that support it, including unambiguous prefixes such as `--no-veri`, and `-n` where it means `--no-verify` (`git commit`, `git am`), including combined flags such as `-anm`
+- `core.hooksPath` overrides through `git -c`, `--config-env`, `GIT_CONFIG_*` variables, or writes with `git config`; modern and legacy reads and unsets of the setting are allowed
+- `LEFTHOOK=0`, `LEFTHOOK=false`, `HUSKY=0`, or a nonempty `LEFTHOOK_EXCLUDE`, `LEFTHOOK_BIN`, or `LEFTHOOK_CONFIG`, set before a command or with `export`
+- `lefthook uninstall`, run directly, by path, or through a runner such as `pnpm exec` or `npx`; mentioning those words in `echo`, `grep`, or a commit message is allowed
+- likely writes under `.git/hooks`: commands such as `rm`, `cp`, `mv`, `chmod`, `sed -i`, and `find -delete`, plus output redirections, including relative paths after a literal `cd .git/hooks`. Reads such as `cat`, `ls`, `grep`, and `git diff` are allowed
+
+These are caught inside `bash -c`, `sh -c`, and `eval`; after `env` (including `-S`/`--split-string`), `sudo` (including value-taking long options), `command`, `nohup`, `time`, `timeout`, and `nice`; after shell reserved words such as `if`/`then` and `while`/`do`, negation, and brace groups; in compound commands such as `cd x && …`; and with paths such as `/usr/bin/git` or after `git --attr-source`. There are no options.
+
+Parser errors, including exceeding the shell nesting limit, cause a denial. Unrecognized syntax isn't necessarily a parser error.
+
+It also removes inherited `LEFTHOOK`, `HUSKY`, `LEFTHOOK_EXCLUDE`, `LEFTHOOK_BIN`, and `LEFTHOOK_CONFIG` values that disable hooks from the environment of shell commands OpenCode runs. It leaves inherited `GIT_CONFIG_*` variables alone, because safely removing one indexed entry would mean renumbering the rest.
+
+git-hook-guard applies only to commands that agents run through OpenCode's shell tool, and only to what the command text shows. It is a heuristic: unusual or unrecognized shell syntax can pass. It doesn't see a script that skips hooks on its own, edits made with OpenCode's file tools, or commands you run in a terminal. Treat it as a guardrail for agents and keep running the same checks in CI.
+
+Adapted from the command policy in [Rat Stack](https://github.com/joelhooks/rat-stack/blob/main/scripts/vcs-command-policy.js) under the [MIT license](git-hook-guard/LICENSE).
 
 ## copilot-usage
 
